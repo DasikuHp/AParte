@@ -677,6 +677,7 @@
 
         .sig-tech-box img {
             max-height: 50px;
+            max-width: 100%;
             object-fit: contain;
         }
 
@@ -1069,9 +1070,6 @@
                 grid-template-columns: 1fr 1fr;
             }
         }
-    .token-missing { position:fixed; bottom:90px; left:50%; transform:translateX(-50%);
-  background:#EF4444; color:#fff; padding:9px 16px; border-radius:8px;
-  font-size:13px; z-index:400; display:none; }
 </style>
 </head>
 
@@ -1456,33 +1454,20 @@
         // CONFIGURACIÓN DE TÉCNICOS
         // Actualizar datos reales cuando estén disponibles
         // ═══════════════════════════════════════════════════════════
-        const API_BASE = 'https://tu-dominio/api'; // ← cambiar a dominio real
-const _TOKEN_KEY = 'partes_token';
-
-function getToken() { return localStorage.getItem(_TOKEN_KEY) || ''; }
-function setToken(t) { localStorage.setItem(_TOKEN_KEY, t); }
-
-function apiFetch(path, opts = {}) {
-  const token = getToken();
-  if (!token) { showTokenPrompt(); return Promise.reject(new Error('No token')); }
-  return fetch(API_BASE + path, {
-    ...opts,
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer ' + token,
-      ...(opts.headers || {})
-    }
-  }).then(r => {
-    if (r.status === 401) { showTokenPrompt(); throw new Error('Unauthorized'); }
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    return r.json();
-  });
-}
-
-function showTokenPrompt() {
-  const t = prompt('Introduce el token de acceso para ' + (S.tech || 'este técnico') + ':');
-  if (t && t.trim()) { setToken(t.trim()); toast('Token guardado'); }
-}
+        function apiFetch(path, opts = {}) {
+            return fetch(path.startsWith('http') ? path : '/api' + path, {
+                credentials: 'include',
+                ...opts,
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(opts.headers || {})
+                }
+            }).then(r => {
+                if (r.status === 401) { showView('login'); throw new Error('No autenticado'); }
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.json();
+            });
+        }
 
 const TECHS = {
             laura: {
@@ -1530,17 +1515,16 @@ const TECHS = {
                 return apiFetch('/partes/' + id + '/send', { method: 'POST', body: JSON.stringify(opts) });
             },
             async uploadPhoto(file) {
-                const token = getToken();
                 const fd = new FormData();
                 fd.append('file', file);
-                const r = await fetch(API_BASE + '/upload', {
+                const r = await fetch('/api/upload', {
                     method: 'POST',
-                    headers: { 'Authorization': 'Bearer ' + token },
+                    credentials: 'include',
                     body: fd
                 });
                 if (!r.ok) throw new Error('Upload failed');
                 const json = await r.json();
-                return { url: API_BASE.replace('/api', '') + json.url };
+                return { url: json.url };
             }
         };
 
@@ -1594,20 +1578,35 @@ const TECHS = {
         // ═══════════════════════════════════════════════════════════
         // SELECCIÓN DE TÉCNICO
         // ═══════════════════════════════════════════════════════════
-        function selectTech(key) {
-            S.tech = key;
-            const t = TECHS[key];
-            const _badge = document.getElementById('nav-badge');
-            const _navName = document.getElementById('nav-name');
-            const _navLogo = document.getElementById('nav-logo');
-            if (_badge) { _badge.textContent = t.initial; _badge.style.background = t.accent; }
-            if (_navName) _navName.textContent = t.shortName;
-            if (_navLogo) _navLogo.style.color = t.accent;
-            document.documentElement.style.setProperty('--accent', t.accent);
-            showView('dashboard');
+        async function selectTech(key) {
+            const pass = prompt('Contraseña de ' + TECHS[key].shortName + ':');
+            if (!pass) return;
+            try {
+                const r = await fetch('/api/auth/login', {
+                    method: 'POST', credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tech: key, password: pass })
+                });
+                if (!r.ok) { toast('❌ Contraseña incorrecta'); return; }
+                S.tech = key;
+                const t = TECHS[key];
+                const _badge = document.getElementById('nav-badge');
+                const _navName = document.getElementById('nav-name');
+                const _navLogo = document.getElementById('nav-logo');
+                if (_badge) { _badge.textContent = t.initial; _badge.style.background = t.accent; }
+                if (_navName) _navName.textContent = t.shortName;
+                if (_navLogo) _navLogo.style.color = t.accent;
+                document.documentElement.style.setProperty('--accent', t.accent);
+                showView('dashboard');
+            } catch(e) { toast('❌ Error de conexión'); }
         }
         function confirmChangeTech() { document.getElementById('modal-tech').classList.add('open'); }
-        function doChangeTech() { closeModal('modal-tech'); S.tech = null; showView('login'); }
+        async function doChangeTech() {
+            closeModal('modal-tech');
+            await fetch('/api/auth/logout', { method:'POST', credentials:'include' });
+            S.tech = null;
+            showView('login');
+        }
 
         // ═══════════════════════════════════════════════════════════
         // DASHBOARD
@@ -1866,11 +1865,16 @@ const TECHS = {
 
                 const ccList = d.emailCC ? d.emailCC.split(',').map(e => e.trim()).filter(Boolean) : [];
                 const fname = `Parte_${(d.empresa || 'Servicio').replace(/\s+/g, '_')}_${d.fecha || ''}.pdf`;
-                await API.sendEmail(saved.id, { para: d.emailPara, cc: ccList, pdfBase64: pdfB64, filename: fname });
+                const sendResult = await API.sendEmail(saved.id, { para: d.emailPara, cc: ccList, pdfBase64: pdfB64, filename: fname });
 
                 downloadPDF(pdfB64, fname);
-                toast('✓ Parte generado y enviado');
-                setTimeout(() => showView('dashboard'), 1600);
+
+                if (sendResult.emailSent === false) {
+                    toast('⚠️ PDF descargado. Email no enviado: ' + (sendResult.emailError || 'error SMTP'));
+                } else {
+                    toast('✓ Parte generado y enviado');
+                }
+                setTimeout(() => showView('dashboard'), 2400);
             } catch (err) {
                 console.error(err);
                 toast('❌ Error al generar el PDF');

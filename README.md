@@ -1,212 +1,209 @@
 <div align="center">
-  <h1>🛠️ API REST Gestión de Partes de Servicio</h1>
-  <p><em>Plataforma web completa (Frontend + Backend) para creación, firma digital y envío de albaranes técnicos.</em></p>
+  <h1>AParte</h1>
+  <p>Partes de servicio para técnicos: se rellenan en el móvil, el cliente firma en la pantalla y el PDF sale por email.</p>
 
-  <!-- Badges -->
-  <img src="https://img.shields.io/badge/Node.js-18.x-43853D?style=for-the-badge&logo=nodedotjs&logoColor=white" alt="Node.js" />
-  <img src="https://img.shields.io/badge/Express.js-000000?style=for-the-badge&logo=express&logoColor=white" alt="Express" />
-  <img src="https://img.shields.io/badge/SQLite-07405E?style=for-the-badge&logo=sqlite&logoColor=white" alt="SQLite" />
-  <img src="https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black" alt="JavaScript" />
+  <p>
+    <img alt="Node.js" src="https://img.shields.io/badge/Node.js_22+-339933?style=for-the-badge&logo=nodedotjs&logoColor=white">
+    <img alt="Express" src="https://img.shields.io/badge/Express-000000?style=for-the-badge&logo=express&logoColor=white">
+    <img alt="SQLite" src="https://img.shields.io/badge/SQLite-003B57?style=for-the-badge&logo=sqlite&logoColor=white">
+    <img alt="JavaScript" src="https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black">
+    <img alt="HTML5" src="https://img.shields.io/badge/HTML5-E34F26?style=for-the-badge&logo=html5&logoColor=white">
+    <img alt="CSS3" src="https://img.shields.io/badge/CSS3-1572B6?style=for-the-badge&logo=css3&logoColor=white">
+  </p>
+  <p>
+    <a href="https://github.com/DasikuHp/AParte/actions/workflows/test.yml"><img alt="Tests" src="https://github.com/DasikuHp/AParte/actions/workflows/test.yml/badge.svg"></a>
+    <img alt="Licencia BSL 1.1" src="https://img.shields.io/badge/licencia-BSL_1.1-blue">
+  </p>
 </div>
 
-<hr />
+La hice durante mis prácticas de 1.º de DAW para dos técnicos de una empresa de informática, que la usan para rellenar los partes desde el móvil. Con AParte el técnico apunta el cliente, las horas, el trabajo hecho y el material, saca fotos, el cliente firma con el dedo y la app genera el PDF y lo envía al cliente y a la oficina.
 
-> [!NOTE]
-> Permite a los técnicos de campo registrar horas, desplazamientos, materiales, adjuntar fotografías, recoger firmas *in-situ* e incluso enviar por correo electrónico el parte generado automáticamente en formato PDF.
+<div align="center">
+  <img src="docs/media/crear-parte.gif" alt="Crear un parte, firmarlo y enviarlo" width="300">
+  <p><sub>Crear un parte de principio a fin en el modo demo (datos ficticios).</sub></p>
+</div>
 
-## 🚀 Tech Stack
+## Qué hace
 
-### ⚙️ Backend
-| Tecnología | Versión | Rol |
-| :--- | :--- | :--- |
-| **Node.js** | `>=18` | Entorno de ejecución |
-| **Express** | `^4.21.2` | Framework, enrutamiento y middleware |
-| **SQLite** | `Built-in` | Base de datos usando el driver nativo `node:sqlite` |
-| **express-session**| `^1.19.0` | Gestión de estado y sesiones |
-| **bcryptjs** | `^3.0.3` | Encriptación de contraseñas |
-| **multer** | `^2.1.1` | Motor de subida de imágenes/fotografías |
-| **nodemailer** | `^8.0.4` | Despliegue de correos vía SMTP |
+| Inicio de sesión | Inicio del técnico | Historial |
+| :---: | :---: | :---: |
+| <img src="docs/media/login.png" width="230"> | <img src="docs/media/inicio.png" width="230"> | <img src="docs/media/historial.png" width="230"> |
+| Cada técnico entra con su contraseña. | Sus últimos partes, con el estado de cada uno. | Todos los partes, con búsqueda y filtros por estado o técnico. |
 
-### 🎨 Frontend
-| Tecnología | Rol |
+| Formulario | Material, fotos y firma | Vista previa |
+| :---: | :---: | :---: |
+| <img src="docs/media/formulario.png" width="230"> | <img src="docs/media/materiales-fotos-firma.png" width="230"> | <img src="docs/media/vista-previa.png" width="230"> |
+| Cliente, fecha, horas, desplazamiento y descripción. | El total del material se calcula solo. La firma se dibuja en un canvas. | El documento tal y como saldrá en el PDF. |
+
+- Los partes se guardan como borrador y se pueden reabrir y corregir, también después de enviarlos.
+- El PDF lleva la firma del cliente y la del técnico, que sale de su perfil.
+- Un parte solo pasa a "Enviado" si el servidor de correo acepta el mensaje. Si falla, el PDF se descarga igualmente y el parte sigue como borrador.
+- Cada técnico ve el historial de todos, pero solo puede editar, borrar o enviar sus propios partes. Los de un compañero se abren en modo consulta:
+
+<div align="center">
+  <img src="docs/media/parte-ajeno-consulta.png" alt="Parte de otro técnico en modo consulta" width="230">
+</div>
+
+## Stack
+
+| Parte | Tecnologías |
 | :--- | :--- |
-| **HTML5 / CSS / Vanilla JS** | SPA Responsive Mobile-First |
-| **jsPDF** *v2.5.1* | Generación de documentos PDF en el navegador |
-| **html2canvas** *v1.4.1* | Renderizado del DOM a imágenes (capturas in-browser) |
-| **Signature Pad** *v4.1.7*| Captura de firmas manuscritas con `<canvas>` |
+| Servidor | Node.js 22+, Express 4, `express-session`, `bcryptjs`, `helmet`, `express-rate-limit` |
+| Base de datos | SQLite con el módulo nativo `node:sqlite` (sin dependencias) |
+| Correo y ficheros | `nodemailer` (SMTP), `multer` (fotos) |
+| Front | HTML, CSS y JavaScript sin framework; `signature_pad`, `html2canvas` y `jsPDF` desde CDN |
+| Tests | `node:test` + `fetch`, GitHub Actions con Node 22 y 24 |
 
----
+## Cómo funciona por dentro
 
-## ✨ Key Features
-
-- 🔒 **Login por Sesiones:** Acceso protegido en memoria/cookie y validación con *Hashes BCrypt* en `.env` para técnicos designados ('laura', 'carlos').
-- 📝 **Gestión de Albaranes:** Control minucioso de empresa, horas laborables, descripción del trabajo y materiales utilizados en tablas dinámicas.
-- 📸 **Evidencia Fotográfica:** Integración con `multer` para subida de fotos del trabajo asociadas al registro localmente.
-- 🖋️ **Firma Digital In Situ:** Registro en la pantalla del dispositivo tanto del cliente como del técnico con vista previa en vivo.
-- 📄 **Generación Offline-First de PDFs:** Descarga la carga del servidor convirtiendo los HTML en PDFs localmente usando `jsPDF` y `html2canvas` del lado cliente.
-- 📧 **Envío Automatizado:** Sistema de mailing por CC con el PDF finalizado usando `nodemailer` y un servidor SMTP a elección.
-
----
-
-## 🗂️ Folder Structure
-
-```text
-/
-├── .env.example          # 📄 Plantilla de variables obligatorias
-├── package.json          # 📦 Metadatos y dependencias
-├── public/               # 🌐 Frontend y Assets
-│   └── partes.html       # 📱 SPA principal (interfaz móvil)
-├── src/                  # 💻 Core del Backend
-│   ├── index.js          # ▶️ Entry point (Express server)
-│   ├── db/               # 🗃️ Capa de Base de Datos
-│   │   ├── index.js      # ⚙️ Driver SQLite (Modo WAL)
-│   │   └── schema.sql    # 📜 DDL: Creación de tabla 'partes'
-│   ├── middleware/       
-│   │   └── auth.js       # 🛡️ Protección de rutas
-│   ├── routes/           # 🛤️ Endpoints API
-│   │   ├── auth.js       # 🔑 Login / Logout / Me
-│   │   └── partes.js     # ⚙️ Gestión CRUD / SMTP / Uploads
-│   └── scripts/
-│       └── genHashes.js  # 🔐 Utilidad CLI para generar hashes
-├── data/                 # 💾 [Auto] Contiene SQLite 'partes.db'
-└── uploads/              # 🖼️ [Auto] Almacena las fotos subidas
+```mermaid
+flowchart LR
+    subgraph Móvil del técnico
+        F[Formulario<br/>public/js/app.js] --> P[Vista previa<br/>div parte-doc]
+        P -->|html2canvas + jsPDF| PDF[PDF en base64]
+    end
+    F -->|fetch JSON| API
+    PDF -->|POST /partes/:id/send| API
+    subgraph Servidor Node.js
+        API[Express<br/>src/app.js] --> S{¿Sesión?<br/>requireAuth}
+        S --> R[routes/partes.js]
+        R --> DB[(SQLite<br/>data/partes.db)]
+        R --> M[nodemailer<br/>src/mailer.js]
+        T[config/tecnicos.json] --> A[routes/auth.js]
+    end
+    M -->|SMTP| C[Cliente y oficina]
 ```
 
----
+La app es una sola página (`public/partes.html`) con varias vistas: login, inicio, formulario, vista previa e historial. `showView()` en `public/js/app.js` oculta todas y muestra la que toca. No hay framework: el estado vive en un objeto `S` y cada vista se pinta con plantillas de texto (escapando lo que viene del usuario con `esc()` para evitar XSS).
 
-## 🛠️ Installation
+El login compara la contraseña con un hash bcrypt guardado en `config/tecnicos.json`. Ese fichero no está en git: tiene el NIF, el móvil y la firma de cada técnico, y la API solo los entrega después del login (`GET /api/auth/me`). La sesión es una cookie `httpOnly` y `sameSite=lax` gestionada por `express-session`; al entrar se regenera el id de sesión y hay un límite de 10 intentos fallidos cada 15 minutos.
 
-**1. Clonar el repositorio y descargar dependencias:**
+En el servidor, `src/routes/partes.js` traduce entre los nombres del front (`emailCliente`, `horaEntrada`...) y las columnas de SQLite (`email_cliente`, `hora_entrada`...) con una sola tabla, `FIELDS`. Todas las consultas son preparadas (`db.prepare(...).run(params)`), así que los datos nunca se concatenan en el SQL. El técnico de cada parte sale de la sesión, no del cuerpo de la petición, y antes de editar, borrar o enviar se comprueba que el parte es suyo.
+
+El PDF se genera en el navegador. `html2canvas` "fotografía" el `div` de la vista previa y `jsPDF` mete esa imagen en un A4, por eso el PDF es una imagen y su texto no se puede seleccionar. El documento mide siempre 600 px de ancho; en el móvil se ve reducido con `transform: scale()`, y así el PDF sale igual desde cualquier pantalla. La firma del cliente es el dibujo del canvas guardado como PNG: sirve como "conforme" del cliente, pero no es una firma electrónica con certificado.
+
+<div align="center">
+  <img src="docs/media/documento-pdf.png" alt="Imagen que se mete en el PDF" width="520">
+  <p><sub>La imagen que acaba dentro del PDF.</sub></p>
+</div>
+
+Para enviar, el front guarda el parte, genera el PDF y llama a `POST /api/partes/:id/send`. El servidor valida los emails, manda el correo con el PDF adjunto y, solo si `nodemailer` no da error, guarda el PDF y marca el parte como enviado. Sin SMTP configurado (o en modo demo) el correo se simula y la interfaz lo avisa.
+
+La base de datos se crea y se actualiza sola al arrancar (`src/db/index.js`). Cada cambio de esquema es una migración numerada y `PRAGMA user_version` guarda cuál fue la última aplicada; la segunda migración, por ejemplo, pasa las fechas antiguas de `dd/mm/aaaa` a `aaaa-mm-dd` sin perder partes.
+
+Otras medidas de seguridad: cabeceras con `helmet` y una Content Security Policy que solo permite los CDN que usa la página; las fotos solo pueden ser JPEG, PNG o WebP de hasta 8 MB, se guardan con un nombre aleatorio y solo se sirven con sesión iniciada; y los errores internos no se devuelven al cliente.
+
+## Estructura del proyecto
+
+```text
+AParte
+├── config/
+│   ├── tecnicos.example.json   Técnicos de ejemplo (contraseña demo1234)
+│   └── firmas/                 Firmas de ejemplo en SVG
+├── public/
+│   ├── partes.html             HTML y CSS de todas las vistas
+│   └── js/app.js               Lógica del front
+├── src/
+│   ├── index.js                Arranque del servidor
+│   ├── app.js                  Express: middlewares, rutas y errores
+│   ├── config.js               Lee las variables de entorno
+│   ├── tecnicos.js             Carga config/tecnicos.json
+│   ├── mailer.js               SMTP real o simulado
+│   ├── middleware/auth.js      Sesión y requireAuth
+│   ├── routes/auth.js          Login, logout, perfil y lista de técnicos
+│   ├── routes/partes.js        CRUD de partes, envío y subida de fotos
+│   ├── db/                     Esquema y migraciones de SQLite
+│   └── scripts/                seed.js (datos de ejemplo) y hash.js (contraseñas)
+├── test/api.test.js            Tests de la API
+└── docs/media/                 Capturas y GIF de este README
+```
+
+## Instalación
+
+Hace falta Node.js 22.13 o posterior (por `node:sqlite`).
+
 ```bash
-git clone <tu-repositorio>
-cd <nombre-repo>
+git clone https://github.com/DasikuHp/AParte.git
+cd AParte
 npm install
 ```
 
-**2. Preparar el Entorno:**
-```bash
-cp .env.example .env
-```
-
-**3. Generar contraseñas seguras:**
-> [!IMPORTANT]
-> El sistema requiere Hashes para el login. Usa la herramienta del backend para encriptar las contraseñas reales de los operarios.
-```bash
-node src/scripts/genHashes.js mI_PaSsWord OtraPass
-```
-*Copia el resultado de la consola a tus variables de entorno `HASH_LAURA` y `HASH_CARLOS` en el archivo `.env`.*
-
-**4. Levantar servidor:**
-```bash
-# Modo de producción
-npm start 
-
-# Modo dev (watch)
-npm run dev
-```
-
-> [!TIP]
-> **No necesitas poblar la Base de Datos**. Al primer arranque, el motor de SQLite se encargará de ejecutar automáticamente el script `schema.sql` para crear e inicializar la base de datos `partes.db` dentro del directorio `data/`.
-
----
-
-## ⚙️ Configuration / Environment Variables
-
-<details>
-<summary><strong>Ver Variables en <code>.env</code></strong> <i>(Click para expandir)</i></summary>
-<br>
-
-| Variable | Descripción |
-| :--- | :--- |
-| `PORT=3000` | Puerto designado al servidor web (API Express). |
-| `SESSION_SECRET` | Cadena firme y secreta para protección de cookie HTTP. |
-| `HASH_LAURA` | String Hash (BCrypt) para validación de login del técnico 1. |
-| `HASH_CARLOS` | String Hash (BCrypt) para validación de login del técnico 2. |
-| `SMTP_HOST` | Host para correos (Ej: `smtp.office365.com`, `smtp.gmail.com`). |
-| `SMTP_PORT` | `587` (TLS) ó `465` (SSL). |
-| `SMTP_SECURE` | `true` ó `false` dependiendo del host saliente. |
-| `SMTP_USER` | Email autenticado. |
-| `SMTP_PASS` | Contraseña nativa o AppPassword del correo emisor. |
-| `SMTP_FROM` | Alias Remitente (Ej: `Empresa Service <soporte@domain.com>`) |
-
-</details>
-
----
-
-## 📡 API Endpoints
-
-<details>
-<summary><strong>🔑 Autenticación (<code>/api/auth</code>)</strong></summary>
-<br>
-
-*   `POST` `/api/auth/login` - Body: `{ "tech": "laura", "password": "..."}` -> *Inicia sesión en backend (crea cookie)*.
-*   `POST` `/api/auth/logout` -> *Destruye la sesión actual.*
-*   `GET` `/api/auth/me` -> *Retorna el nombre si la cookie es válida, verificando autenticación activa.*
-</details>
-
-<details>
-<summary><strong>📋 Gestión de Partes (<code>/api/partes</code>)</strong></summary>
-<br>
-
-*   `GET` `/api/partes` -> *Lista Partes sin PDF en payload (ligero). Soporta query params: `?tech=`, `?status=` y búsqueda libre `?q=`.*
-*   `POST` `/api/partes` -> *Crea un nuevo Borrador (Draft) en la DB SQLite.*
-*   `PUT` `/api/partes/:id` -> *Modificando la data individual (Campos base, fotos, array interno JSON de mats, etc).*
-*   `GET` `/api/partes/:id` -> *Retorna los detalles íntegros de un solo parte.*
-*   `DELETE` `/api/partes/:id` -> *Elimina del registro de la tabla local.*
-</details>
-
-<details>
-<summary><strong>📧 Envío & Subida Especial</strong></summary>
-<br>
-
-*   **Subida Fotografía (POST)** `/api/upload` - *[Multipart Form, campo: `file`]* -> *Almacena en binario local y devuelve un JSON con URL en string.*
-*   **Envío de PDF por Correo (POST)** `/api/partes/:id/send`
-    *   **Body:** `{ "para": "client@mail.com", "cc": ["...", "..."], "pdfBase64": "data:pdf...", "filename": "albaran.pdf" }`
-    *   **Acuse:** Actualiza la DB SQLite incrustando el String en Base64 de forma temporal/pesada, dispara un email a los destinatarios mediante *Nodemailer* por SMTP cambiando el estado exitoso de proceso al ticket completo (Status > Sent).
-</details>
-
----
-
-## 💻 Usage Examples
-
-Aprovecha tu terminal para interactuar con la API de forma programática (usando `curl`):
+Para probarla con datos ficticios, sin configurar nada:
 
 ```bash
-# 1. Hacer Login y guardar las cookies
-curl -X POST http://localhost:3000/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"tech": "laura", "password": "mipassword"}' \
-  -c cookies.txt
-
-# 2. Consultar mis partes pendientes en estado draft utilizando autenticación
-curl -X GET "http://localhost:3000/api/partes?status=draft" \
-  -b cookies.txt
+DEMO_MODE=true npm start          # en PowerShell: $env:DEMO_MODE="true"; npm start
 ```
 
----
+Abre `http://localhost:3000`, elige un técnico y entra con `demo1234`. Los correos no se envían.
 
-## 🧠 How It Works (Data Flow)
+Para usarla de verdad:
 
-1. 📲 **Captura de Data Front-End:** El Frontend es una _Single Page Application_ (SPA/Vanilla). Mantiene el historial de cada ticket en un estado dinámico temporal sin obligar a refrescar la página.
-2. 📸 **Intercambio Multipart:** Al subir evidencias fotográficas, el componente JS manda al vuelo hacia `/api/upload` el Buffer. El back (usando Multer) las deposita en el disco `/uploads` y retorna un URI público limpio para la interfaz.
-3. 🖋️ **Firma Digital Vectorial:** Apoyado en `SignaturePad`, ambas firmas (técnico y cliente) son convertidas desde un elemento `<canvas>` vivo directamente a imagen codificada formato `Base64 (PNG)` integrándose al objeto.
-4. 💾 **Sincronización:** Mediante petición hacia la ruta controladora local, se guardan y serializan los materiales en `.db` (`schema` tipo SQLite usando librerías nativas actualizadas e instanciando modo *WAL*).
-5. 🖨️ **Baking del Comprobante PDF Creado Al Vuelo:** Un `div` virtual HTML pre-maquetado es rellenado con plantillas. Acto seguido `html2canvas` inyecta dicho ticket a una simulación tipo imagen y lo remueve en formato PDF usando el generador `jsPDF` codificando el base64 de vuelta. El servidor **no consume la CPU**, lo hace el navegador por delante.
-6. 🚀 **Distribución Asíncrona SMTP:** El Archivo base64 validado hace push a `/api/partes/:id/send`, la ruta prepara el buffer re-acondicionando su cabecera y delega un servicio de Email con `Nodemailer`.
+```bash
+cp .env.example .env                             # y rellena SESSION_SECRET y el SMTP
+cp config/tecnicos.example.json config/tecnicos.json
+npm run hash -- LaContraseñaDelTécnico           # pega el resultado en passwordHash
+npm start
+```
 
+## Variables de entorno
 
-## 📝 LICENCIA - Business Source License 1.1 (BSL 1.1)
+| Variable | Para qué sirve | Por defecto |
+| :--- | :--- | :--- |
+| `PORT` | Puerto del servidor | `3000` |
+| `SESSION_SECRET` | Clave para firmar la cookie de sesión. Obligatoria en producción | aleatoria en desarrollo |
+| `DEMO_MODE` | `true`: técnicos de ejemplo, partes ficticios y correo simulado | `false` |
+| `TECNICOS_FILE` | Fichero con los técnicos | `config/tecnicos.json` |
+| `DB_PATH` | Base de datos SQLite | `data/partes.db` |
+| `UPLOADS_DIR` | Carpeta de las fotos | `uploads/` |
+| `COOKIE_SECURE` / `TRUST_PROXY` | Cookies solo por HTTPS detrás de un proxy (Nginx, Render...) | `true` si `NODE_ENV=production` |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | Servidor de correo. Si `SMTP_HOST` está vacío, el correo se simula | vacío |
 
-**Aparte** está protegido bajo la **BSL 1.1**.
+## API
 
-* **Permitido**: Uso personal, investigación, desarrollo interno y contribuciones.
-* **Prohibido**: Uso comercial directo, hosting como SaaS, redistribución o creación de productos competidores sin licencia.
+Todas las rutas van bajo `/api` y, salvo las tres primeras, piden sesión.
 
-📧 **Contacto Comercial**: [dasikuhp@gmail.com](mailto:dasikuhp@gmail.com)
+| Método | Ruta | Qué hace |
+| :---: | :--- | :--- |
+| `GET` | `/tecnicos` | Nombre, iniciales, empresa y color de cada técnico (para el login) |
+| `POST` | `/auth/login` | `{ tech, password }`. Crea la sesión y devuelve el perfil |
+| `GET` | `/auth/me` | Perfil del técnico conectado |
+| `POST` | `/auth/logout` | Cierra la sesión |
+| `GET` | `/partes?tech=&status=&q=` | Lista de partes (sin PDF ni firma) |
+| `GET` | `/partes/:id` | Un parte completo, con `editable` si es tuyo |
+| `POST` | `/partes` | Crea un borrador |
+| `PUT` | `/partes/:id` | Modifica un parte propio |
+| `DELETE` | `/partes/:id` | Borra un parte propio |
+| `POST` | `/partes/:id/send` | `{ para, cc, pdfBase64, filename }`. Envía el PDF; 502 si falla el correo |
+| `GET` | `/partes/:id/pdf` | PDF del último envío |
+| `POST` | `/upload` | Sube una foto (`multipart/form-data`, campo `file`) |
 
----
+```bash
+# Ejemplo con curl en el modo demo
+curl -c cookies.txt -H "Content-Type: application/json" \
+  -d '{"tech":"laura","password":"demo1234"}' http://localhost:3000/api/auth/login
+curl -b cookies.txt "http://localhost:3000/api/partes?status=sent"
+```
+
+## Tests
+
+```bash
+npm test
+```
+
+Los 11 tests de `test/api.test.js` levantan la app con una base de datos en memoria y un correo falso, y comprueban, entre otras cosas, que un parte reabierto conserva todos sus campos, que un técnico no puede tocar los partes de otro, que un fallo del SMTP deja el parte como borrador, que no se pueden subir ficheros que no sean imágenes y que la migración conserva los partes antiguos. GitHub Actions los pasa en cada push con Node 22 y 24.
+
+## Limitaciones
+
+- Las sesiones se guardan en memoria: al reiniciar el servidor hay que volver a entrar, y no sirve para varias instancias a la vez.
+- Necesita internet para cargar `jsPDF`, `html2canvas`, `signature_pad` y las fuentes desde sus CDN.
+- El PDF es una imagen, así que su texto no se puede copiar ni buscar.
+- Los técnicos se dan de alta editando `config/tecnicos.json`; no hay panel de administración.
+- Si se quita una foto de un parte, el fichero se queda en `uploads/`.
+
+## Licencia
+
+[Business Source License 1.1](LICENSE). Puedes leer, copiar y modificar el código y usarlo fuera de producción. El uso comercial necesita permiso; el 27 de marzo de 2030 pasa a Apache 2.0. Contacto: [dasikuhp@gmail.com](mailto:dasikuhp@gmail.com).
 
 <div align="center">
-  <p>Autor: <strong>DasikuHp</strong> | Versión: aparte-alfa | Actualizado: 2026-04-02</p>
-  <p>🚀 <em>Ready to revolutionize local development.</em></p>
+  <sub>Hecho por <a href="https://github.com/DasikuHp">DasikuHp</a> · versión 1.1.0</sub>
 </div>

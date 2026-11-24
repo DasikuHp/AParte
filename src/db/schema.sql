@@ -1,4 +1,3 @@
-PRAGMA journal_mode=WAL;
 CREATE TABLE IF NOT EXISTS partes (
   id            TEXT PRIMARY KEY,                          -- UUID v4
   tech          TEXT NOT NULL CHECK(tech IN ('laura','carlos')),

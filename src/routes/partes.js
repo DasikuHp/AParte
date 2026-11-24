@@ -1,341 +1,257 @@
 const express = require('express');
-const router = express.Router();
 const crypto = require('crypto');
-const nodemailer = require('nodemailer');
-const { db } = require('../db'); // Importa la instancia db del nuevo export { db, initDb }
-const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const multer = require('multer');
 
-// Crear la ruta de subidas usando __dirname
-const UPLOADS_DIR = path.join(__dirname, '..', '..', 'uploads');
-if (!fs.existsSync(UPLOADS_DIR)) {
-  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+// Correspondencia entre los nombres de la API (camelCase, los que usa el front)
+// y las columnas de SQLite (snake_case). Todo pasa por aquí para que no se pierdan campos.
+const FIELDS = {
+  empresa: 'empresa',
+  direccion: 'direccion',
+  contacto: 'contacto',
+  telefono: 'telefono',
+  emailCliente: 'email_cliente',
+  emailPara: 'email_para',
+  emailCC: 'email_cc',
+  fecha: 'fecha', // yyyy-mm-dd
+  horaEntrada: 'hora_entrada',
+  horaSalida: 'hora_salida',
+  totalHoras: 'total_horas',
+  desplazamiento: 'desplazamiento',
+  descripcion: 'descripcion',
+  pendiente: 'pendiente',
+  mats: 'mats', // JSON
+  fotos: 'fotos', // JSON (array de URLs)
+  firmaCliente: 'firma_cliente', // data URL PNG del canvas
+};
+const JSON_FIELDS = new Set(['mats', 'fotos']);
+const LIST_COLUMNS = `id, tech, empresa, fecha, total_horas, status, created_at, updated_at, sent_at`;
+
+const MAX_TEXT = 5000;
+const MAX_FIRMA = 500 * 1024; // ~500 KB de data URL
+const MAX_PDF = 10 * 1024 * 1024; // ~10 MB de base64
+const MAX_DESTINATARIOS = 10;
+const EMAIL_RE = /^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/;
+const FOTO_TIPOS = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' };
+
+function fromRow(row) {
+  if (!row) return row;
+  const out = {
+    id: row.id,
+    tech: row.tech,
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    sentAt: row.sent_at,
+  };
+  for (const [api, col] of Object.entries(FIELDS)) {
+    if (!(col in row)) continue;
+    out[api] = JSON_FIELDS.has(api) ? (row[col] ? JSON.parse(row[col]) : []) : row[col];
+  }
+  if ('pdf_base64' in row) out.tienePdf = Boolean(row.pdf_base64);
+  return out;
 }
 
-// Configurar almacenamiento de multer
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, UPLOADS_DIR);
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+// Valida y convierte el cuerpo de la petición en columnas. Lanza Error con status 400.
+function toColumns(body) {
+  const cols = {};
+  for (const [api, col] of Object.entries(FIELDS)) {
+    if (body[api] === undefined) continue;
+    let val = body[api];
+    if (JSON_FIELDS.has(api)) {
+      if (!Array.isArray(val)) throw badRequest(`${api} debe ser una lista`);
+      if (api === 'fotos' && !val.every((u) => typeof u === 'string' && u.startsWith('/uploads/'))) {
+        throw badRequest('fotos contiene URLs no válidas');
+      }
+      val = JSON.stringify(val);
+      if (val.length > 50000) throw badRequest(`${api} es demasiado grande`);
+    } else if (val !== null) {
+      val = String(val);
+      if (api === 'firmaCliente') {
+        if (!val.startsWith('data:image/png;base64,') || val.length > MAX_FIRMA) {
+          throw badRequest('Firma no válida');
+        }
+      } else if (val.length > MAX_TEXT) {
+        throw badRequest(`${api} es demasiado largo`);
+      }
+    }
+    cols[col] = val;
   }
-});
-const upload = multer({ storage: storage });
+  return cols;
+}
 
-// Columnas sin pdf_base64 para no saturar las respuestas
-const COLUMNS_WITHOUT_PDF = `
-  id, tech, empresa, direccion, contacto, telefono, 
-  email_cliente, email_para, email_cc, fecha, hora_entrada, 
-  hora_salida, total_horas, desplazamiento, descripcion, 
-  pendiente, mats, fotos, status, created_at, updated_at
-`;
+function badRequest(msg) {
+  const err = new Error(msg);
+  err.status = 400;
+  return err;
+}
 
-// GET /api/partes
-router.get('/partes', (req, res) => {
-  try {
+function parseEmails(value) {
+  const list = (Array.isArray(value) ? value : String(value || '').split(','))
+    .map((e) => String(e).trim())
+    .filter(Boolean);
+  if (list.length > MAX_DESTINATARIOS) throw badRequest('Demasiados destinatarios');
+  for (const e of list) if (!EMAIL_RE.test(e)) throw badRequest(`Email no válido: ${e}`);
+  return list;
+}
+
+function partesRouter({ db, mailer, config, tecnicos }) {
+  const router = express.Router();
+  fs.mkdirSync(config.uploadsDir, { recursive: true });
+
+  const getParte = db.prepare('SELECT * FROM partes WHERE id = ?');
+
+  // Carga el parte y comprueba que pertenece al técnico de la sesión.
+  function loadOwn(req, res) {
+    const row = getParte.get(req.params.id);
+    if (!row) {
+      res.status(404).json({ error: 'Parte no encontrado' });
+      return null;
+    }
+    if (row.tech !== req.session.tech) {
+      res.status(403).json({ error: 'Este parte es de otro técnico' });
+      return null;
+    }
+    return row;
+  }
+
+  // GET /api/partes?tech=&status=&q=  (todos los técnicos ven el historial común)
+  router.get('/partes', (req, res) => {
     const { tech, status, q } = req.query;
-    
-    let sql = `SELECT ${COLUMNS_WITHOUT_PDF} FROM partes WHERE 1=1`;
+    let sql = `SELECT ${LIST_COLUMNS} FROM partes WHERE 1=1`;
     const params = [];
-
-    if (tech) {
-      sql += ` AND tech = ?`;
+    if (typeof tech === 'string' && tech) {
+      sql += ' AND tech = ?';
       params.push(tech);
     }
-    
-    if (status) {
-      sql += ` AND status = ?`;
+    if (status === 'draft' || status === 'sent') {
+      sql += ' AND status = ?';
       params.push(status);
     }
-
-    if (q) {
-      sql += ` AND (empresa LIKE ? OR descripcion LIKE ? OR fecha LIKE ?)`;
-      const searchTerm = `%${q}%`;
-      params.push(searchTerm, searchTerm, searchTerm);
+    if (typeof q === 'string' && q.trim()) {
+      sql += ' AND (empresa LIKE ? OR descripcion LIKE ? OR fecha LIKE ?)';
+      const term = `%${q.trim()}%`;
+      params.push(term, term, term);
     }
-
-    sql += ` ORDER BY created_at DESC`;
-
-    const stmt = db.prepare(sql);
-    let partes = stmt.all(...params);
-    
-    // Parse JSON fields
-    partes = partes.map(p => {
-      if (p.mats) p.mats = JSON.parse(p.mats);
-      if (p.fotos) p.fotos = JSON.parse(p.fotos);
-      return p;
-    });
-    
-    res.json(partes);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// POST /api/partes
-router.post('/partes', (req, res) => {
-  try {
-    const id = crypto.randomUUID();
-    const data = req.body;
-    
-    if (!data.tech) {
-      return res.status(400).json({ error: "El campo 'tech' es obligatorio" });
-    }
-
-    const matsStr = data.mats ? JSON.stringify(data.mats) : null;
-    const fotosData = data.fotos !== undefined ? data.fotos : data.photoUrls;
-    const fotosStr = fotosData ? JSON.stringify(fotosData) : null;
-
-    const sql = `
-      INSERT INTO partes (
-        id, tech, empresa, direccion, contacto, telefono, 
-        email_cliente, email_para, email_cc, fecha, hora_entrada, 
-        hora_salida, total_horas, desplazamiento, descripcion, 
-        pendiente, mats, fotos, status, pdf_base64
-      ) VALUES (
-        @id, @tech, @empresa, @direccion, @contacto, @telefono,
-        @email_cliente, @email_para, @email_cc, @fecha, @hora_entrada,
-        @hora_salida, @total_horas, @desplazamiento, @descripcion,
-        @pendiente, @mats, @fotos, @status, @pdf_base64
-      )
-    `;
-
-    const stmt = db.prepare(sql);
-    stmt.run({
-      id,
-      tech: data.tech,
-      empresa: data.empresa || null,
-      direccion: data.direccion || null,
-      contacto: data.contacto || null,
-      telefono: data.telefono || null,
-      email_cliente: data.email_cliente || data.emailCliente || null,
-      email_para: data.email_para || data.emailPara || null,
-      email_cc: data.email_cc || data.emailCC || null,
-      fecha: data.fecha || null,
-      hora_entrada: data.hora_entrada || data.horaEntrada || null,
-      hora_salida: data.hora_salida || data.horaSalida || null,
-      total_horas: data.total_horas || data.totalHoras || null,
-      desplazamiento: data.desplazamiento || null,
-      descripcion: data.descripcion || data.desc || null,
-      pendiente: data.pendiente || null,
-      mats: matsStr,
-      fotos: fotosStr,
-      status: data.status || 'draft',
-      pdf_base64: data.pdf_base64 || null
-    });
-
-    const createdSql = `SELECT ${COLUMNS_WITHOUT_PDF} FROM partes WHERE id = ?`;
-    let created = db.prepare(createdSql).get(id);
-    
-    if (created.mats) created.mats = JSON.parse(created.mats);
-    if (created.fotos) created.fotos = JSON.parse(created.fotos);
-
-    res.status(201).json(created);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// PUT /api/partes/:id
-router.put('/partes/:id', (req, res) => {
-  try {
-    const id = req.params.id;
-    const data = req.body;
-    
-    // Check if exists
-    const checkStmt = db.prepare(`SELECT id FROM partes WHERE id = ?`);
-    if (!checkStmt.get(id)) {
-      return res.status(404).json({ error: "Parte no encontrado" });
-    }
-
-    const updates = [];
-    const params = {};
-
-    const allowedFields = [
-      'tech', 'empresa', 'direccion', 'contacto', 'telefono', 
-      'email_cliente', 'email_para', 'email_cc', 'fecha', 'hora_entrada', 
-      'hora_salida', 'total_horas', 'desplazamiento', 'descripcion', 
-      'pendiente', 'status', 'pdf_base64'
-    ];
-
-    const fieldMap = {
-      email_cliente: data.emailCliente,
-      email_para: data.emailPara,
-      email_cc: data.emailCC,
-      hora_entrada: data.horaEntrada,
-      hora_salida: data.horaSalida,
-      total_horas: data.totalHoras,
-      descripcion: data.desc
-    };
-
-    allowedFields.forEach(field => {
-      const val = data[field] !== undefined ? data[field] : fieldMap[field];
-      if (val !== undefined) {
-        updates.push(`${field} = @${field}`);
-        params[field] = val;
-      }
-    });
-
-    if (data.mats !== undefined) {
-      updates.push(`mats = @mats`);
-      params.mats = data.mats ? JSON.stringify(data.mats) : null;
-    }
-
-    const fotosVal = data.fotos !== undefined ? data.fotos : data.photoUrls;
-    if (fotosVal !== undefined) {
-      updates.push(`fotos = @fotos`);
-      params.fotos = fotosVal ? JSON.stringify(fotosVal) : null;
-    }
-
-    if (updates.length > 0) {
-      updates.push(`updated_at = datetime('now')`);
-      params.id = id;
-
-      const sql = `UPDATE partes SET ${updates.join(', ')} WHERE id = @id`;
-      const stmt = db.prepare(sql);
-      stmt.run(params);
-    }
-
-    const updatedSql = `SELECT ${COLUMNS_WITHOUT_PDF} FROM partes WHERE id = ?`;
-    let updated = db.prepare(updatedSql).get(id);
-    
-    if (updated.mats) updated.mats = JSON.parse(updated.mats);
-    if (updated.fotos) updated.fotos = JSON.parse(updated.fotos);
-
-    res.json(updated);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// GET /api/partes/:id
-router.get('/partes/:id', (req, res) => {
-  try {
-    const stmt = db.prepare(`SELECT * FROM partes WHERE id = ?`);
-    let parte = stmt.get(req.params.id);
-    
-    if (!parte) {
-      return res.status(404).json({ error: "Parte no encontrado" });
-    }
-
-    if (parte.mats) parte.mats = JSON.parse(parte.mats);
-    if (parte.fotos) parte.fotos = JSON.parse(parte.fotos);
-
-    res.json(parte);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// DELETE /api/partes/:id
-router.delete('/partes/:id', (req, res) => {
-  try {
-    const stmt = db.prepare(`DELETE FROM partes WHERE id = ?`);
-    const info = stmt.run(req.params.id);
-    
-    if (info.changes === 0) {
-      return res.status(404).json({ error: "Parte no encontrado" });
-    }
-
-    res.json({ deleted: true });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Configurar transporte SMTP con configuración robusta para SMTP externo
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: parseInt(process.env.SMTP_PORT) || 587,
-  secure: process.env.SMTP_SECURE === 'true',
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-  tls: { rejectUnauthorized: false },
-  connectionTimeout: 10000,
-  greetingTimeout: 10000,
-});
-
-// POST /api/partes/:id/send
-router.post('/partes/:id/send', async (req, res) => {
-  const id = req.params.id;
-  const { para, cc, pdfBase64, filename } = req.body;
-
-  // 1. Buscar el parte en SQLite
-  const stmt = db.prepare(`SELECT empresa, fecha FROM partes WHERE id = ?`);
-  const parte = stmt.get(id);
-
-  if (!parte) {
-    return res.status(404).json({ error: "Parte no encontrado" });
-  }
-
-  // 2. SIEMPRE guardar PDF y marcar como enviado ANTES de intentar email
-  const updateStmt = db.prepare(`
-    UPDATE partes 
-    SET pdf_base64 = @pdf_base64, 
-        status = 'sent', 
-        updated_at = datetime('now') 
-    WHERE id = @id
-  `);
-  
-  updateStmt.run({
-    id: id,
-    pdf_base64: pdfBase64 || null
+    sql += ' ORDER BY created_at DESC LIMIT 200';
+    res.json(db.prepare(sql).all(...params).map(fromRow));
   });
 
-  // 3. Preparar array de CC
-  const ccArray = Array.isArray(cc) ? cc : (cc ? [cc] : []);
+  router.get('/partes/:id', (req, res) => {
+    const row = getParte.get(req.params.id);
+    if (!row) return res.status(404).json({ error: 'Parte no encontrado' });
+    const parte = fromRow(row);
+    parte.editable = row.tech === req.session.tech;
+    res.json(parte);
+  });
 
-  // Limpiar base64
-  const pureBase64 = pdfBase64 ? (pdfBase64.includes(',') ? pdfBase64.split(',')[1] : pdfBase64) : '';
+  // PDF guardado del último envío.
+  router.get('/partes/:id/pdf', (req, res) => {
+    const row = getParte.get(req.params.id);
+    if (!row || !row.pdf_base64) return res.status(404).json({ error: 'Este parte no tiene PDF' });
+    res.type('application/pdf');
+    res.set('Content-Disposition', `inline; filename="parte-${row.id.slice(0, 8)}.pdf"`);
+    res.send(Buffer.from(row.pdf_base64, 'base64'));
+  });
 
-  // 4. Parámetros del Email
-  const mailOptions = {
-    from: process.env.SMTP_FROM || process.env.SMTP_USER,
-    to: para,
-    cc: ccArray,
-    subject: `Parte de Servicio - ${parte.empresa || 'Cliente'}`,
-    html: "<p>Adjunto parte de servicio. Firmado digitalmente.</p>",
-    attachments: []
-  };
-  
-  if (parte.fecha) mailOptions.subject += ` - ${parte.fecha}`;
+  router.post('/partes', (req, res) => {
+    const cols = toColumns(req.body || {});
+    cols.id = crypto.randomUUID();
+    cols.tech = req.session.tech; // el técnico sale de la sesión, nunca del cuerpo
+    cols.status = 'draft';
+    const names = Object.keys(cols);
+    db.prepare(`INSERT INTO partes (${names.join(', ')}) VALUES (${names.map((n) => '@' + n).join(', ')})`)
+      .run(cols);
+    res.status(201).json(fromRow(getParte.get(cols.id)));
+  });
 
-  if (pureBase64) {
-    mailOptions.attachments.push({
-      filename: filename || 'parte-servicio.pdf',
-      content: pureBase64,
-      encoding: 'base64',
-      contentType: 'application/pdf'
+  // Actualiza un parte propio. No cambia ni el técnico ni el estado (un parte
+  // enviado se puede corregir y reenviar; sigue constando como enviado).
+  router.put('/partes/:id', (req, res) => {
+    if (!loadOwn(req, res)) return;
+    const cols = toColumns(req.body || {});
+    const names = Object.keys(cols);
+    if (names.length) {
+      db.prepare(`UPDATE partes SET ${names.map((n) => `${n} = @${n}`).join(', ')},
+        updated_at = datetime('now') WHERE id = @id`).run({ ...cols, id: req.params.id });
+    }
+    res.json(fromRow(getParte.get(req.params.id)));
+  });
+
+  router.delete('/partes/:id', (req, res) => {
+    if (!loadOwn(req, res)) return;
+    db.prepare('DELETE FROM partes WHERE id = ?').run(req.params.id);
+    res.json({ deleted: true });
+  });
+
+  // POST /api/partes/:id/send  { para, cc, pdfBase64, filename }
+  // Solo se marca como enviado si el servidor de correo acepta el mensaje.
+  router.post('/partes/:id/send', async (req, res, next) => {
+    try {
+      const row = loadOwn(req, res);
+      if (!row) return;
+      const { pdfBase64, filename } = req.body || {};
+      const para = parseEmails(req.body?.para);
+      const cc = parseEmails(req.body?.cc);
+      if (para.length === 0) throw badRequest('Falta el destinatario');
+      if (typeof pdfBase64 !== 'string' || !pdfBase64 || pdfBase64.length > MAX_PDF) {
+        throw badRequest('PDF no válido');
+      }
+      const pdf = pdfBase64.includes(',') ? pdfBase64.split(',')[1] : pdfBase64;
+      const tecnico = tecnicos.get(row.tech);
+      const fecha = row.fecha ? row.fecha.split('-').reverse().join('/') : '';
+
+      try {
+        await mailer.send({
+          to: para,
+          cc,
+          replyTo: tecnico?.email,
+          subject: `Parte de servicio - ${row.empresa || 'Cliente'}${fecha ? ' - ' + fecha : ''}`,
+          text: `Adjunto el parte de servicio${tecnico ? ' de ' + tecnico.nombre : ''}.`,
+          attachments: [{
+            filename: String(filename || 'parte-servicio.pdf').replace(/[^\w.\- ]/g, '_').slice(0, 100),
+            content: pdf,
+            encoding: 'base64',
+            contentType: 'application/pdf',
+          }],
+        });
+      } catch (mailErr) {
+        console.error('[SMTP]', mailErr.message);
+        return res.status(502).json({ emailSent: false, error: 'No se pudo enviar el correo. El parte sigue como borrador.' });
+      }
+
+      db.prepare(`UPDATE partes SET status = 'sent', pdf_base64 = ?, sent_at = datetime('now'),
+        updated_at = datetime('now') WHERE id = ?`).run(pdf, row.id);
+      res.json({ emailSent: true, simulated: mailer.simulated, parte: fromRow(getParte.get(row.id)) });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // Fotos: solo imágenes JPEG/PNG/WebP, máx. 8 MB, con nombre aleatorio.
+  // La extensión sale del tipo MIME, nunca del nombre que manda el cliente.
+  const upload = multer({
+    storage: multer.diskStorage({
+      destination: config.uploadsDir,
+      filename: (req, file, cb) => cb(null, crypto.randomUUID() + FOTO_TIPOS[file.mimetype]),
+    }),
+    limits: { fileSize: 8 * 1024 * 1024, files: 1, fields: 0 },
+    fileFilter: (req, file, cb) => cb(FOTO_TIPOS[file.mimetype] ? null : badRequest('Solo se admiten fotos JPEG, PNG o WebP'), true),
+  });
+
+  router.post('/upload', (req, res, next) => {
+    upload.single('file')(req, res, (err) => {
+      if (err) {
+        if (err instanceof multer.MulterError) err.status = 400;
+        return next(err);
+      }
+      if (!req.file) return res.status(400).json({ error: 'No se ha enviado ninguna foto' });
+      res.status(201).json({ url: '/uploads/' + path.basename(req.file.filename) });
     });
-  }
+  });
 
-  // 5. Intentar enviar email — si falla, NO devolver 500
-  try {
-    await transporter.sendMail(mailOptions);
-    res.json({ success: true, id, pdfBase64: pdfBase64 || null, emailSent: true });
-  } catch (emailError) {
-    console.error('[SMTP Error]', emailError.message);
-    res.json({ 
-      success: true, 
-      id, 
-      pdfBase64: pdfBase64 || null, 
-      emailSent: false, 
-      emailError: emailError.message 
-    });
-  }
-});
+  return router;
+}
 
-// POST /api/upload
-router.post('/upload', upload.single('file'), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ error: 'No file uploaded' });
-  }
-  res.json({ url: '/uploads/' + req.file.filename });
-});
-
-module.exports = router;
+module.exports = { partesRouter };

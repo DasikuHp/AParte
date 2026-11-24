@@ -1073,6 +1073,28 @@
             }
         }
 
+        /* ORDENADOR: el formulario y las barras de botones no se estiran */
+        @media (min-width: 760px) {
+            #view-form {
+                max-width: 720px;
+                margin: 0 auto;
+                padding-top: 18px;
+            }
+
+            .fsec {
+                border: 1px solid var(--border);
+                border-radius: 10px;
+                overflow: hidden;
+                margin-bottom: 14px;
+            }
+
+            .action-bar,
+            .preview-bar {
+                padding-left: calc((100% - 720px) / 2);
+                padding-right: calc((100% - 720px) / 2);
+            }
+        }
+
         /* RESPONSIVE */
         @media (max-width: 380px) {
             .frow {

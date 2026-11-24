@@ -573,11 +573,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         toast('❌ No se pudo conectar con el servidor');
     }
     // Si la sesión sigue viva (recarga de página), se entra directamente.
+    // Si el técnico ya ha entrado mientras llegaba esta respuesta, no se le saca al login.
     try {
         const { perfil } = await API.me();
-        enterSession(perfil);
+        if (!S.perfil) enterSession(perfil);
     } catch {
-        showView('login');
+        if (!S.perfil) showView('login');
     }
 
     window.addEventListener('resize', () => {

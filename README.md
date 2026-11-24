@@ -44,6 +44,14 @@ La hice durante mis prácticas de 1.º de DAW para dos técnicos de una empresa 
   <img src="docs/media/parte-ajeno-consulta.png" alt="Parte de otro técnico en modo consulta" width="230">
 </div>
 
+## En el ordenador
+
+En la oficina el parte también se puede rellenar desde el ordenador. A partir de 760 px de ancho el formulario se queda en una columna centrada de 720 px, y la vista previa muestra el documento a tamaño real.
+
+| Formulario | Vista previa |
+| :---: | :---: |
+| <img src="docs/media/escritorio-formulario.png" width="420"> | <img src="docs/media/escritorio-vista-previa.png" width="420"> |
+
 ## Stack
 
 | Parte | Tecnologías |

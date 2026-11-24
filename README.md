@@ -18,10 +18,9 @@
 
 La hice durante mis prácticas de 1.º de DAW para dos técnicos de una empresa de informática, que la usan para rellenar los partes desde el móvil. Con AParte el técnico apunta el cliente, las horas, el trabajo hecho y el material, saca fotos, el cliente firma con el dedo y la app genera el PDF y lo envía al cliente y a la oficina.
 
-<div align="center">
-  <img src="docs/media/crear-parte.gif" alt="Crear un parte, firmarlo y enviarlo" width="300">
-  <p><sub>Crear un parte de principio a fin en el modo demo (datos ficticios).</sub></p>
-</div>
+https://github.com/user-attachments/assets/74e59539-df02-4d9f-8a62-2420fc54f4bb
+
+<sub>En el móvil, de principio a fin: entrar, rellenar el parte, añadir una foto, firmar, enviar y consultar el historial (modo demo, datos ficticios).</sub>
 
 ## Qué hace
 
@@ -47,6 +46,8 @@ La hice durante mis prácticas de 1.º de DAW para dos técnicos de una empresa 
 ## En el ordenador
 
 En la oficina el parte también se puede rellenar desde el ordenador. A partir de 760 px de ancho el formulario se queda en una columna centrada de 720 px, y la vista previa muestra el documento a tamaño real.
+
+https://github.com/user-attachments/assets/2e294a61-c809-4eba-9c89-a77781bb3741
 
 | Formulario | Vista previa |
 | :---: | :---: |

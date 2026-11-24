@@ -1,0 +1,37 @@
+{
+  "_comentario": "Copia este fichero a config/tecnicos.json y pon tus datos. passwordHash se genera con: npm run hash -- TU_CONTRASEÑA. Los datos de este ejemplo son ficticios (contraseña: demo1234).",
+  "tecnicos": [
+    {
+      "id": "laura",
+      "nombre": "Laura Martín",
+      "nombreCorto": "Laura",
+      "iniciales": "LM",
+      "empresa": "Informática Ejemplo S.L.",
+      "nif": "00000000T",
+      "direccion": "Calle Ejemplo 1 · 46000 Valencia",
+      "movil": "600 000 000",
+      "email": "laura@example.com",
+      "web": "www.example.com",
+      "ccPorDefecto": "administracion@example.com",
+      "color": "#C8870A",
+      "firma": "firmas/laura.svg",
+      "passwordHash": "$2b$12$jnCXir02yVe4ZNT7E1dIkOuoW/7BsCBdXrvLcRWEW7R7E9DaDuJBe"
+    },
+    {
+      "id": "carlos",
+      "nombre": "Carlos Gómez",
+      "nombreCorto": "Carlos",
+      "iniciales": "CG",
+      "empresa": "Instalaciones Demo S.L.",
+      "nif": "00000001R",
+      "direccion": "Avenida Prueba 2 · 46001 Valencia",
+      "movil": "600 000 001",
+      "email": "carlos@example.org",
+      "web": "www.example.org",
+      "ccPorDefecto": "oficina@example.org",
+      "color": "#0891B2",
+      "firma": "firmas/carlos.svg",
+      "passwordHash": "$2b$12$jnCXir02yVe4ZNT7E1dIkOuoW/7BsCBdXrvLcRWEW7R7E9DaDuJBe"
+    }
+  ]
+}

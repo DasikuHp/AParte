@@ -410,6 +410,7 @@
         }
 
         input[type=text],
+        input[type=password],
         input[type=date],
         input[type=email],
         input[type=tel],
@@ -1074,6 +1075,20 @@
                 grid-template-columns: 1fr 1fr;
             }
         }
+        .demo-note {
+            margin-top: 22px;
+            font-size: 12px;
+            color: var(--text2);
+            text-align: center;
+            line-height: 1.5;
+        }
+
+        .login-error {
+            color: #DC2626;
+            font-size: 13px;
+            min-height: 18px;
+            margin-top: 8px;
+        }
 </style>
 </head>
 
@@ -1083,17 +1098,9 @@
     <div id="view-login" class="view active">
         <div class="login-logo">Partes de Servicio</div>
         <div class="login-sub">Selecciona tu perfil de técnico</div>
-        <div class="tech-cards">
-            <div class="tech-card" onclick="selectTech('laura')">
-                <div class="tc-avatar" style="background:#C8870A22;color:#C8870A">LM</div>
-                <div class="tc-name">Laura Martín</div>
-                <div class="tc-company">Informática Ejemplo S.L.</div>
-            </div>
-            <div class="tech-card" onclick="selectTech('carlos')">
-                <div class="tc-avatar" style="background:#0891B222;color:#0891B2">CG</div>
-                <div class="tc-name">Carlos Gómez</div>
-                <div class="tc-company">Instalaciones Demo S.L.</div>
-            </div>
+        <div class="tech-cards" id="tech-cards"></div>
+        <div class="demo-note" id="demo-note" style="display:none">
+            Demo con datos ficticios · contraseña <strong>demo1234</strong> · los correos no se envían
         </div>
     </div>
 
@@ -1102,8 +1109,8 @@
         <button class="nav-back" id="nav-back" onclick="goBack()">←</button>
         <span class="nav-logo" id="nav-logo">Partes</span>
         <div class="nav-tech">
-            <div class="nav-badge" id="nav-badge">L</div>
-            <span id="nav-name">Laura</span>
+            <div class="nav-badge" id="nav-badge"></div>
+            <span id="nav-name"></span>
         </div>
     </nav>
 
@@ -1112,7 +1119,7 @@
         <div class="container">
             <div class="dash-head" style="margin-top:8px">
                 <h1 id="dash-greeting">Buenos días</h1>
-                <p id="dash-sub">Informática Ejemplo S.L.</p>
+                <p id="dash-sub"></p>
             </div>
             <div class="dash-actions">
                 <button class="dash-btn cta" onclick="goToForm()">
@@ -1265,7 +1272,7 @@
             <div class="fbody">
                 <div class="sig-tech-box" id="sig-tech-box">
                     <span class="sig-icon" id="sig-tech-icon">🔐</span>
-                    <span class="sig-name" id="sig-tech-name">Laura Martín</span>
+                    <span class="sig-name" id="sig-tech-name"></span>
                     <span class="sig-note" id="sig-tech-note">Firma automática según perfil seleccionado</span>
                     <img id="sig-tech-img" src="" alt="firma técnico">
                 </div>
@@ -1400,7 +1407,8 @@
         </div>
 
         <div class="preview-bar">
-            <button class="btn btn-outline" onclick="showView('form')">← Editar</button>
+            <button class="btn btn-outline" id="btn-edit" onclick="showView('form')">← Editar</button>
+            <button class="btn btn-outline" id="btn-pdf" style="display:none" onclick="openSavedPdf()">Ver PDF enviado</button>
             <button class="btn btn-primary" id="btn-gen" onclick="confirmSend()">Generar PDF y Enviar</button>
         </div>
     </div>
@@ -1418,8 +1426,7 @@
                     <div class="chip on" onclick="setChip('all',this)">Todos</div>
                     <div class="chip" onclick="setChip('sent',this)">Enviados</div>
                     <div class="chip" onclick="setChip('draft',this)">Borradores</div>
-                    <div class="chip" onclick="setChip('laura',this)">Laura</div>
-                    <div class="chip" onclick="setChip('carlos',this)">Carlos</div>
+                    <span id="tech-chips"></span>
                 </div>
                 <div id="history-list"></div>
             </div>
@@ -1438,6 +1445,21 @@
         </div>
     </div>
 
+    <!-- MODAL LOGIN -->
+    <div class="modal-bg" id="modal-login">
+        <form class="modal" onsubmit="doLogin(event)">
+            <h3 id="login-title">Entrar</h3>
+            <div class="modal-body">
+                <input type="password" id="login-pass" placeholder="Contraseña" autocomplete="current-password" required>
+                <div id="login-error" class="login-error"></div>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-outline" style="flex:1" onclick="closeModal('modal-login')">Cancelar</button>
+                <button type="submit" class="btn btn-primary" style="flex:1" id="login-btn">Entrar</button>
+            </div>
+        </form>
+    </div>
+
     <!-- MODAL CHANGE TECH -->
     <div class="modal-bg" id="modal-tech">
         <div class="modal">
@@ -1452,563 +1474,7 @@
 
     <div id="toast"></div>
 
-    <script>
-        // ═══════════════════════════════════════════════════════════
-        // CONFIGURACIÓN DE TÉCNICOS
-        // Actualizar datos reales cuando estén disponibles
-        // ═══════════════════════════════════════════════════════════
-        function apiFetch(path, opts = {}) {
-            return fetch(path.startsWith('http') ? path : '/api' + path, {
-                credentials: 'include',
-                ...opts,
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...(opts.headers || {})
-                }
-            }).then(r => {
-                if (r.status === 401) { showView('login'); throw new Error('No autenticado'); }
-                if (!r.ok) throw new Error('HTTP ' + r.status);
-                return r.json();
-            });
-        }
-
-const TECHS = {
-            laura: {
-                name: 'Laura Martín',
-                shortName: 'Laura',
-                initial: 'LM',
-                company: 'Informática Ejemplo S.L.',
-                nif: '00000000T',
-                address: 'Calle Ejemplo 1 · 46000 Valencia',
-                movil: '600 000 000',
-                email: 'laura@example.com',
-                web: 'www.example.com',
-                defaultCC: 'administracion@example.com',
-                signatureImg: null,
-                accent: '#C8870A',
-            },
-            carlos: {
-                name: 'Carlos Gómez',
-                shortName: 'Carlos',
-                initial: 'CG',
-                company: 'Instalaciones Demo S.L.',
-                nif: '00000001R',
-                address: 'Avenida Prueba 2 · 46001 Valencia',
-                movil: '600 000 001',
-                email: 'carlos@example.org',
-                web: 'www.example.org',
-                defaultCC: 'oficina@example.org',
-                signatureImg: null,
-                accent: '#0891B2',
-            }
-        };
-
-        // Cliente de la API REST (mismo origen, sesión por cookie)
-        const API = {
-            async getPartes(filters = {}) {
-                return apiFetch('/partes?' + new URLSearchParams(filters));
-            },
-            async saveParte(data) {
-                return apiFetch('/partes', { method: 'POST', body: JSON.stringify(data) });
-            },
-            async updateParte(id, data) {
-                return apiFetch('/partes/' + id, { method: 'PUT', body: JSON.stringify(data) });
-            },
-            async sendEmail(id, opts) {
-                return apiFetch('/partes/' + id + '/send', { method: 'POST', body: JSON.stringify(opts) });
-            },
-            async uploadPhoto(file) {
-                const fd = new FormData();
-                fd.append('file', file);
-                const r = await fetch('/api/upload', {
-                    method: 'POST',
-                    credentials: 'include',
-                    body: fd
-                });
-                if (!r.ok) throw new Error('Upload failed');
-                const json = await r.json();
-                return { url: json.url };
-            }
-        };
-
-        // ═══════════════════════════════════════════════════════════
-        // ESTADO
-        // ═══════════════════════════════════════════════════════════
-        const S = {
-            tech: null,
-            view: 'login',
-            prevView: null,
-            desp: 'SI',
-            mats: [],
-            photos: [],
-            sigPad: null,
-            draftId: null,
-            histFilter: 'all',
-        };
-
-        // ═══════════════════════════════════════════════════════════
-        // NAVEGACIÓN
-        // ═══════════════════════════════════════════════════════════
-        function showView(name, fromBack = false) {
-            if (!fromBack) S.prevView = S.view;
-            S.view = name;
-            document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-            document.getElementById(`view-${name}`).classList.add('active');
-
-            const nav = document.getElementById('main-nav');
-            const back = document.getElementById('nav-back');
-            if (name === 'login') {
-                nav.style.display = 'none';
-            } else {
-                nav.style.display = 'flex';
-                back.style.display = (name === 'dashboard') ? 'none' : 'flex';
-            }
-
-            if (name === 'dashboard') initDash();
-            if (name === 'form') initForm();
-            if (name === 'preview') buildPreview();
-            if (name === 'history') { S.histFilter = 'all'; document.querySelectorAll('.chip').forEach((c, i) => c.classList.toggle('on', i === 0)); renderHistory(); }
-            window.scrollTo(0, 0);
-        }
-
-        function goBack() {
-            const back = S.prevView && S.prevView !== S.view ? S.prevView : 'dashboard';
-            showView(back, true);
-        }
-        function goToForm() { S.draftId = null; clearForm(); showView('form'); }
-        function goToPreview() { showView('preview'); }
-
-        // ═══════════════════════════════════════════════════════════
-        // SELECCIÓN DE TÉCNICO
-        // ═══════════════════════════════════════════════════════════
-        async function selectTech(key) {
-            const pass = prompt('Contraseña de ' + TECHS[key].shortName + ':');
-            if (!pass) return;
-            try {
-                const r = await fetch('/api/auth/login', {
-                    method: 'POST', credentials: 'include',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ tech: key, password: pass })
-                });
-                if (!r.ok) { toast('❌ Contraseña incorrecta'); return; }
-                S.tech = key;
-                const t = TECHS[key];
-                const _badge = document.getElementById('nav-badge');
-                const _navName = document.getElementById('nav-name');
-                const _navLogo = document.getElementById('nav-logo');
-                if (_badge) { _badge.textContent = t.initial; _badge.style.background = t.accent; }
-                if (_navName) _navName.textContent = t.shortName;
-                if (_navLogo) _navLogo.style.color = t.accent;
-                document.documentElement.style.setProperty('--accent', t.accent);
-                showView('dashboard');
-            } catch(e) { toast('❌ Error de conexión'); }
-        }
-        function confirmChangeTech() { document.getElementById('modal-tech').classList.add('open'); }
-        async function doChangeTech() {
-            closeModal('modal-tech');
-            await fetch('/api/auth/logout', { method:'POST', credentials:'include' });
-            S.tech = null;
-            showView('login');
-        }
-
-        // ═══════════════════════════════════════════════════════════
-        // DASHBOARD
-        // ═══════════════════════════════════════════════════════════
-        async function initDash() {
-            if (!S.tech) return;
-            const t = TECHS[S.tech];
-            const h = new Date().getHours();
-            const g = h < 12 ? 'Buenos días' : h < 20 ? 'Buenas tardes' : 'Buenas noches';
-            const _dg = document.getElementById('dash-greeting');
-            const _ds = document.getElementById('dash-sub');
-            if (_dg) _dg.textContent = `${g}, ${t.shortName}`;
-            if (_ds) _ds.textContent = `${t.company} · ${fmtDateLong(new Date())}`;
-            const rows = (await API.getPartes({ tech: S.tech })).slice(0, 6);
-            const el = document.getElementById('recent-list');
-            if (!el) return;
-            el.innerHTML = rows.length
-                ? rows.map(parteHTML).join('')
-                : `<div class="empty-state"><div class="empty-icon">📄</div><p>Sin partes aún. ¡Crea el primero!</p></div>`;
-        }
-
-        function parteHTML(p) {
-            const badge = p.status === 'sent'
-                ? `<span class="badge badge-sent">Enviado</span>`
-                : `<span class="badge badge-draft">Borrador</span>`;
-            return `<div class="parte-item" onclick="viewParte('${p.id}')">
-    <div class="pi-left">
-      <h4>${esc(p.empresa || 'Sin cliente')}</h4>
-      <p>${esc(p.techName || '')} · ${esc(p.fecha || '')}</p>
-    </div>
-    <div class="pi-right">${badge}<div class="pi-hours">${esc(p.totalHoras || '')}</div></div>
-  </div>`;
-        }
-
-        // ═══════════════════════════════════════════════════════════
-        // FORMULARIO
-        // ═══════════════════════════════════════════════════════════
-        function initForm() {
-            if (!document.getElementById('f-fecha').value)
-                document.getElementById('f-fecha').value = today();
-            if (!document.getElementById('f-email-cc').value && S.tech)
-                document.getElementById('f-email-cc').value = TECHS[S.tech].defaultCC;
-
-            // Firma cliente: usar doble rAF para garantizar layout completo
-            const canvas = document.getElementById('sig-canvas');
-            const _initPad = () => {
-                const ratio = window.devicePixelRatio || 1;
-                const w = canvas.offsetWidth || canvas.parentElement?.offsetWidth || 300;
-                const h = 140;
-                canvas.width = Math.floor(w * ratio);
-                canvas.height = Math.floor(h * ratio);
-                canvas.getContext('2d').scale(ratio, ratio);
-                if (!S.sigPad) {
-                    S.sigPad = new SignaturePad(canvas, { minWidth: 1, maxWidth: 3, penColor: '#18263A' });
-                } else {
-                    S.sigPad.clear();
-                }
-            };
-            // doble requestAnimationFrame = layout + paint completados
-            requestAnimationFrame(() => requestAnimationFrame(_initPad));
-            renderMats();
-            const _stName = document.getElementById('sig-tech-name');
-            if (_stName) _stName.textContent = S.tech ? TECHS[S.tech].name : '';
-
-            // Firma técnico: usar img persistente (no reemplazar innerHTML)
-            const _stImg = document.getElementById('sig-tech-img');
-            const _stIcon = document.getElementById('sig-tech-icon');
-            const _stNote = document.getElementById('sig-tech-note');
-            if (S.tech && TECHS[S.tech].signatureImg && _stImg) {
-                _stImg.src = TECHS[S.tech].signatureImg;
-                _stImg.style.display = 'block';
-                if (_stIcon) _stIcon.style.display = 'none';
-                if (_stNote) _stNote.style.display = 'none';
-            } else if (_stImg) {
-                _stImg.style.display = 'none';
-                if (_stIcon) _stIcon.style.display = '';
-                if (_stNote) _stNote.style.display = '';
-            }
-        }
-
-        function clearForm() {
-            ['f-empresa', 'f-direccion', 'f-contacto', 'f-tel', 'f-email-cli',
-                'f-entrada', 'f-salida', 'f-horas', 'f-desc', 'f-pendiente',
-                'f-email-para', 'f-email-cc'].forEach(id => {
-                    const el = document.getElementById(id);
-                    if (el) el.value = '';
-                });
-            document.getElementById('f-fecha').value = today();
-            S.desp = 'SI'; setDesp('SI');
-            S.mats = []; renderMats();
-            S.photos = []; document.getElementById('photo-grid').innerHTML = '';
-            if (S.sigPad) { S.sigPad.off(); S.sigPad = null; }
-            if (S.tech) document.getElementById('f-email-cc').value = TECHS[S.tech].defaultCC;
-        }
-
-        function setDesp(v) {
-            S.desp = v;
-            document.getElementById('d-si').className = 'tgl' + (v === 'SI' ? ' tgl-si' : '');
-            document.getElementById('d-no').className = 'tgl' + (v === 'NO' ? ' tgl-no' : '');
-        }
-
-        // ── MATERIALES ──────────────────────────────────────────────
-        function renderMats() {
-            const tb = document.getElementById('mat-body');
-            if (S.mats.length === 0) {
-                tb.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:14px;color:#bbb;font-size:12px">Sin materiales añadidos</td></tr>`;
-                return;
-            }
-            tb.innerHTML = S.mats.map((m, i) => {
-                const total = (parseFloat(m.qty) || 0) * (parseFloat(m.price) || 0);
-                return `<tr>
-      <td><input type="text" value="${esc(m.desc || '')}" placeholder="Descripción" onchange="updMat(${i},'desc',this.value)"></td>
-      <td><input type="number" value="${m.qty || ''}" placeholder="1" min="0" style="text-align:center" onchange="updMat(${i},'qty',this.value)"></td>
-      <td><input type="number" value="${m.price || ''}" placeholder="0.00" min="0" step="0.01" onchange="updMat(${i},'price',this.value)"></td>
-      <td class="mat-total">${total > 0 ? total.toFixed(2) : '—'}</td>
-      <td><button class="btn-icon" onclick="delMat(${i})">✕</button></td>
-    </tr>`;
-            }).join('');
-        }
-        function addMat() { S.mats.push({ desc: '', qty: 1, price: 0 }); renderMats(); }
-        function delMat(i) { S.mats.splice(i, 1); renderMats(); }
-        function updMat(i, k, v) {
-            S.mats[i][k] = k === 'desc' ? v : parseFloat(v) || 0;
-            // Update just the total cell to avoid losing focus
-            const rows = document.getElementById('mat-body').querySelectorAll('tr');
-            if (rows[i]) {
-                const total = (S.mats[i].qty || 0) * (S.mats[i].price || 0);
-                rows[i].querySelector('.mat-total').textContent = total > 0 ? total.toFixed(2) : '—';
-            }
-        }
-
-        // ── FOTOS ───────────────────────────────────────────────────
-        async function handlePhotos(e) {
-            for (const f of Array.from(e.target.files)) {
-                const r = await API.uploadPhoto(f);
-                S.photos.push({ file: f, url: r.url });
-            }
-            renderPhotos();
-            e.target.value = '';
-        }
-        function renderPhotos() {
-            document.getElementById('photo-grid').innerHTML = S.photos.map((p, i) => `
-    <div class="photo-wrap">
-      <img src="${p.url}" alt="foto ${i + 1}">
-      <button class="photo-del" onclick="delPhoto(${i})">✕</button>
-    </div>`).join('');
-        }
-        function delPhoto(i) { S.photos.splice(i, 1); renderPhotos(); }
-        function clearSig() { if (S.sigPad) S.sigPad.clear(); else { const c = document.getElementById("sig-canvas"); if (c) { const ctx = c.getContext("2d"); ctx.clearRect(0, 0, c.width, c.height); } } }
-
-        // ── RECOGER DATOS ───────────────────────────────────────────
-        function collectData() {
-            const t = S.tech ? TECHS[S.tech] : {};
-            const fechaISO = document.getElementById('f-fecha').value;
-            return {
-                tech: S.tech,
-                techName: t.name,
-                empresa: v('f-empresa'),
-                direccion: v('f-direccion'),
-                contacto: v('f-contacto'),
-                telefono: v('f-tel'),
-                emailCliente: v('f-email-cli'),
-                fechaISO,
-                fecha: fmtDate(fechaISO),
-                horaEntrada: v('f-entrada'),
-                horaSalida: v('f-salida'),
-                totalHoras: v('f-horas'),
-                desplazamiento: S.desp,
-                desc: v('f-desc'),
-                pendiente: v('f-pendiente'),
-                mats: JSON.parse(JSON.stringify(S.mats)),
-                emailPara: v('f-email-para'),
-                emailCC: v('f-email-cc'),
-                clientSig: S.sigPad && !S.sigPad.isEmpty() ? S.sigPad.toDataURL() : null,
-                photoUrls: S.photos.map(p => p.url),
-                techSig: t.signatureImg || null,
-                footer: `${t.name || ''} · NIF: ${t.nif || ''} · ${t.address || ''} · Móvil ${t.movil || ''} · ${t.email || ''} · ${t.web || ''}`,
-            };
-        }
-
-        async function saveDraft() {
-            const d = collectData(); d.status = 'draft';
-            if (S.draftId) { await API.updateParte(S.draftId, d); }
-            else { const r = await API.saveParte(d); S.draftId = r.id; }
-            toast('✓ Borrador guardado');
-        }
-
-        // ═══════════════════════════════════════════════════════════
-        // PREVIEW
-        // ═══════════════════════════════════════════════════════════
-        function buildPreview() {
-            const d = collectData();
-            set('p-empresa', d.empresa); set('p-dir', d.direccion); set('p-contacto', d.contacto);
-            set('p-tel', d.telefono); set('p-emailcli', d.emailCliente);
-            set('p-tecnico', d.techName); set('p-entrada', d.horaEntrada);
-            set('p-salida', d.horaSalida); set('p-fecha', d.fecha);
-            set('p-horas', d.totalHoras); set('p-desp', d.desplazamiento);
-            set('p-desc', d.desc); set('p-pendiente', d.pendiente);
-            set('p-footer', d.footer);
-
-            // Materiales
-            const mat = document.getElementById('p-mat');
-            if (d.mats.length > 0) {
-                const totalGlobal = d.mats.reduce((s, m) => s + (m.qty || 0) * (m.price || 0), 0);
-                mat.innerHTML = `<thead><tr>
-      <th>Descripción</th><th style="width:50px">Cant.</th>
-      <th style="width:65px">P.Unit €</th><th style="width:65px">Total €</th>
-    </tr></thead><tbody>
-    ${d.mats.map(m => `<tr>
-      <td>${esc(m.desc || '')}</td>
-      <td style="text-align:center">${m.qty || ''}</td>
-      <td style="text-align:right">${(m.price || 0).toFixed(2)}</td>
-      <td style="text-align:right">${((m.qty || 0) * (m.price || 0)).toFixed(2)}</td>
-    </tr>`).join('')}
-    <tr><td colspan="3" style="text-align:right;font-weight:700;padding:4px 8px;background:#f5f5f5">TOTAL:</td>
-    <td class="td-total" style="text-align:right;padding:4px 6px">${totalGlobal.toFixed(2)} €</td></tr>
-    </tbody>`;
-            } else {
-                mat.innerHTML = '<thead></thead><tbody><tr><td colspan="4" style="color:#aaa;padding:8px;font-size:10px;text-align:center">Sin materiales</td></tr></tbody>';
-            }
-
-            // Firma cliente
-            const sc = document.getElementById('p-sig-cli');
-            if (d.clientSig) { sc.src = d.clientSig; sc.style.display = 'block'; }
-            else { sc.style.display = 'none'; }
-
-            // Firma técnico
-            const st = document.getElementById('p-sig-tech');
-            const sph = document.getElementById('p-sig-tech-ph');
-            if (d.techSig) { st.src = d.techSig; st.style.display = 'block'; sph.style.display = 'none'; }
-            else { st.style.display = 'none'; sph.style.display = 'block'; }
-        }
-
-        // ═══════════════════════════════════════════════════════════
-        // GENERAR PDF Y ENVIAR
-        // ═══════════════════════════════════════════════════════════
-        function confirmSend() {
-            const d = collectData();
-            const ccList = d.emailCC ? d.emailCC.split(',').map(e => e.trim()).filter(Boolean) : [];
-            document.getElementById('modal-send-body').innerHTML =
-                `<strong>Para:</strong> ${esc(d.emailPara || '—')}<br>` +
-                `<strong>CC:</strong> ${esc(ccList.join(', ') || '—')}<br><br>` +
-                `Se adjuntará el PDF del parte de servicio (no editable).`;
-            document.getElementById('modal-send').classList.add('open');
-        }
-
-        async function doSend() {
-            closeModal('modal-send');
-            const btn = document.getElementById('btn-gen');
-            btn.innerHTML = '<span class="spinner"></span> Generando...';
-            btn.disabled = true;
-            try {
-                const d = collectData();
-                const pdfB64 = await generatePDF();
-                d.status = 'sent'; d.pdfBase64 = pdfB64;
-
-                let saved;
-                if (S.draftId) saved = await API.updateParte(S.draftId, d);
-                else saved = await API.saveParte(d);
-
-                const ccList = d.emailCC ? d.emailCC.split(',').map(e => e.trim()).filter(Boolean) : [];
-                const fname = `Parte_${(d.empresa || 'Servicio').replace(/\s+/g, '_')}_${d.fecha || ''}.pdf`;
-                const sendResult = await API.sendEmail(saved.id, { para: d.emailPara, cc: ccList, pdfBase64: pdfB64, filename: fname });
-
-                downloadPDF(pdfB64, fname);
-
-                if (sendResult.emailSent === false) {
-                    toast('⚠️ PDF descargado. Email no enviado: ' + (sendResult.emailError || 'error SMTP'));
-                } else {
-                    toast('✓ Parte generado y enviado');
-                }
-                setTimeout(() => showView('dashboard'), 2400);
-            } catch (err) {
-                console.error(err);
-                toast('❌ Error al generar el PDF');
-            } finally {
-                btn.innerHTML = 'Generar PDF y Enviar';
-                btn.disabled = false;
-            }
-        }
-
-        async function generatePDF() {
-            const { jsPDF } = window.jspdf;
-            const el = document.getElementById('parte-doc');
-            const canvas = await html2canvas(el, {
-                scale: 2.5, useCORS: true, backgroundColor: '#ffffff', logging: false
-            });
-            const img = canvas.toDataURL('image/jpeg', 0.95);
-            const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
-            const pw = pdf.internal.pageSize.getWidth();
-            const ph = (canvas.height * pw) / canvas.width;
-            pdf.addImage(img, 'JPEG', 0, 0, pw, ph);
-            // Añadir metadata para que sea identificable
-            pdf.setProperties({
-                title: 'Parte de Servicio',
-                subject: document.getElementById('p-empresa').textContent,
-                author: S.tech ? TECHS[S.tech].name : '',
-                creator: 'Sistema Partes de Servicio'
-            });
-            return pdf.output('datauristring').split(',')[1];
-        }
-
-        function downloadPDF(b64, fname) {
-            const a = document.createElement('a');
-            a.href = 'data:application/pdf;base64,' + b64;
-            a.download = fname;
-            a.click();
-        }
-
-        // ═══════════════════════════════════════════════════════════
-        // HISTORIAL
-        // ═══════════════════════════════════════════════════════════
-        async function renderHistory() {
-            const q = document.getElementById('h-search')?.value || '';
-            const f = S.histFilter;
-            const filters = { q };
-            if (f === 'sent') filters.status = 'sent';
-            if (f === 'draft') filters.status = 'draft';
-            if (f === 'laura') filters.tech = 'laura';
-            if (f === 'carlos') filters.tech = 'carlos';
-
-            const rows = await API.getPartes(filters);
-            const el = document.getElementById('history-list');
-            el.innerHTML = rows.length
-                ? rows.map(parteHTML).join('')
-                : `<div class="empty-state"><div class="empty-icon">🔍</div><p>No se encontraron partes</p></div>`;
-        }
-
-        function setChip(filter, el) {
-            S.histFilter = filter;
-            document.querySelectorAll('.chip').forEach(c => c.classList.remove('on'));
-            el.classList.add('on');
-            renderHistory();
-        }
-
-        async function viewParte(id) {
-            const rows = await API.getPartes({});
-            const p = rows.find(r => r.id === id);
-            if (!p) { toast('Parte no encontrado'); return; }
-            // Cargar datos en formulario para consulta/reenvío
-            S.draftId = p.id;
-            clearForm();
-            const fields = {
-                'f-empresa': p.empresa, 'f-direccion': p.direccion,
-                'f-contacto': p.contacto, 'f-tel': p.telefono,
-                'f-email-cli': p.emailCliente, 'f-fecha': p.fechaISO || p.fecha,
-                'f-entrada': p.horaEntrada, 'f-salida': p.horaSalida,
-                'f-horas': p.totalHoras, 'f-desc': p.desc,
-                'f-pendiente': p.pendiente, 'f-email-para': p.emailPara,
-                'f-email-cc': p.emailCC,
-            };
-            Object.entries(fields).forEach(([id, val]) => {
-                const el = document.getElementById(id);
-                if (el && val != null) el.value = val;
-            });
-            if (p.desplazamiento) setDesp(p.desplazamiento);
-            S.mats = Array.isArray(p.mats) ? p.mats : (p.mats ? JSON.parse(p.mats) : []);
-            showView('form');
-            toast(`${p.empresa || 'Sin cliente'} · ${p.status === 'sent' ? '✓ Enviado' : 'Borrador'}`);
-        }
-
-        // ═══════════════════════════════════════════════════════════
-        // UTILS
-        // ═══════════════════════════════════════════════════════════
-        function v(id) { return (document.getElementById(id) || {}).value || ''; }
-        function set(id, val) { const el = document.getElementById(id); if (el) el.textContent = val || ''; }
-        function esc(s) { return String(s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
-        function today() { return new Date().toISOString().split('T')[0]; }
-        function fmtDate(iso) { if (!iso) return ''; const [y, m, d] = iso.split('-'); return `${d}/${m}/${y}`; }
-        function fmtDateLong(d) { return d.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }); }
-        function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-        function toast(msg) {
-            const el = document.getElementById('toast');
-            el.textContent = msg; el.classList.add('show');
-            setTimeout(() => el.classList.remove('show'), 2800);
-        }
-        function closeModal(id) { document.getElementById(id).classList.remove('open'); }
-
-        // ═══════════════════════════════════════════════════════════
-        // INIT
-        // ═══════════════════════════════════════════════════════════
-        document.addEventListener('DOMContentLoaded', () => {
-            showView('login');
-            window.addEventListener('resize', () => {
-                if (S.view === 'form' && S.sigPad) {
-                    const c = document.getElementById('sig-canvas');
-                    if (c) {
-                        const ratio = window.devicePixelRatio || 1;
-                        const data = S.sigPad.toData();
-                        const w = c.offsetWidth || 300;
-                        c.width = Math.floor(w * ratio);
-                        c.height = Math.floor(140 * ratio);
-                        c.getContext('2d').scale(ratio, ratio);
-                        S.sigPad.fromData(data);
-                    }
-                }
-            });
-        });
-    </script>
+    <script src="/js/app.js"></script>
 </body>
 
 </html>

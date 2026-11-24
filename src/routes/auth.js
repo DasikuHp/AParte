@@ -1,55 +1,62 @@
 const express = require('express');
-const router = express.Router();
 const bcrypt = require('bcryptjs');
+const rateLimit = require('express-rate-limit');
 
-// POST /api/auth/login
-router.post('/auth/login', (req, res) => {
-  try {
-    const { tech, password } = req.body;
+function authRouter({ tecnicos, config }) {
+  const router = express.Router();
 
-    if (!tech || !password) {
-      return res.status(400).json({ error: 'Faltan campos tech y/o password' });
-    }
-
-    if (tech !== 'laura' && tech !== 'carlos') {
-      return res.status(400).json({ error: 'Técnico no válido' });
-    }
-
-    const hashEnv = tech === 'laura' ? process.env.HASH_LAURA : process.env.HASH_CARLOS;
-
-    if (!hashEnv) {
-      return res.status(500).json({ error: 'Hash no configurado en el servidor' });
-    }
-
-    const valid = bcrypt.compareSync(password, hashEnv);
-
-    if (!valid) {
-      return res.status(401).json({ error: 'Contraseña incorrecta' });
-    }
-
-    req.session.tech = tech;
-    res.json({ ok: true, tech });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// POST /api/auth/logout
-router.post('/auth/logout', (req, res) => {
-  req.session.destroy((err) => {
-    if (err) {
-      return res.status(500).json({ error: err.message });
-    }
-    res.json({ ok: true });
+  // 10 intentos fallidos de login por IP cada 15 minutos.
+  const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 10,
+    skipSuccessfulRequests: true,
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+    message: { error: 'Demasiados intentos. Espera unos minutos.' },
   });
-});
 
-// GET /api/auth/me
-router.get('/auth/me', (req, res) => {
-  if (req.session && req.session.tech) {
-    return res.json({ tech: req.session.tech });
-  }
-  res.status(401).json({ error: 'No autenticado' });
-});
+  // Lista pública para la pantalla de login (sin NIF, móvil ni firma).
+  router.get('/tecnicos', (req, res) => {
+    res.json({ tecnicos: tecnicos.publicList(), demo: config.demo });
+  });
 
-module.exports = router;
+  router.post('/auth/login', loginLimiter, async (req, res, next) => {
+    try {
+      const { tech, password } = req.body || {};
+      if (typeof tech !== 'string' || typeof password !== 'string' || !password) {
+        return res.status(400).json({ error: 'Faltan el técnico o la contraseña' });
+      }
+      const t = tecnicos.get(tech);
+      // Mismo mensaje si el técnico no existe o la contraseña falla.
+      if (!t || !(await bcrypt.compare(password, t.passwordHash))) {
+        return res.status(401).json({ error: 'Técnico o contraseña incorrectos' });
+      }
+      // Nueva sesión al entrar, para que no se pueda reutilizar un id de sesión previo.
+      req.session.regenerate((err) => {
+        if (err) return next(err);
+        req.session.tech = t.id;
+        res.json({ perfil: tecnicos.perfil(t.id) });
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.post('/auth/logout', (req, res, next) => {
+    req.session.destroy((err) => {
+      if (err) return next(err);
+      res.clearCookie('partes.sid');
+      res.json({ ok: true });
+    });
+  });
+
+  router.get('/auth/me', (req, res) => {
+    const perfil = req.session?.tech && tecnicos.perfil(req.session.tech);
+    if (!perfil) return res.status(401).json({ error: 'No autenticado' });
+    res.json({ perfil });
+  });
+
+  return router;
+}
+
+module.exports = { authRouter };

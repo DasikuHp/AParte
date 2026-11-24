@@ -1,22 +1,28 @@
 {
-  "name": "partedeservicios-api",
-  "version": "1.0.0",
-  "description": "API REST para gestión de partes de servicio técnico",
+  "name": "aparte",
+  "version": "1.1.0",
+  "private": true,
+  "description": "Partes de servicio para técnicos: formulario en el móvil, firma del cliente, PDF y envío por email",
+  "license": "BUSL-1.1",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "node --watch src/index.js"
+    "dev": "node --watch src/index.js",
+    "seed": "node src/scripts/seed.js",
+    "hash": "node src/scripts/hash.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=22.13.0"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
-    "cors": "^2.8.5",
     "dotenv": "^16.4.7",
-    "express": "^4.21.2",
+    "express": "^4.22.3",
+    "express-rate-limit": "^8.7.5",
     "express-session": "^1.19.0",
-    "multer": "^2.1.1",
-    "nodemailer": "^8.0.4"
-  },
-  "engines": {
-    "node": ">=18.0.0"
+    "helmet": "^8.3.0",
+    "multer": "^2.5.0",
+    "nodemailer": "^10.6.1"
   }
 }

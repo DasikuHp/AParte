@@ -1,52 +1,22 @@
 require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
-const path = require('path');
 
-const partesRouter = require('./routes/partes');
-const authRouter = require('./routes/auth');
-const { sessionMiddleware, requireAuth } = require('./middleware/auth');
-const { initDb } = require('./db');
+const { loadConfig } = require('./config');
+const { openDb } = require('./db');
+const { createMailer } = require('./mailer');
+const { loadTecnicos } = require('./tecnicos');
+const { createApp } = require('./app');
 
-// Inicializar la base de datos y esquema
-initDb();
+const config = loadConfig();
+const db = openDb(config.dbPath);
+const mailer = createMailer(config);
+const tecnicos = loadTecnicos(config.tecnicosFile);
 
-const app = express();
-const PORT = process.env.PORT || 3000;
+if (config.demo) {
+  require('./scripts/seed').seedIfEmpty(db);
+}
 
-// Middleware
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  credentials: true
-}));
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-
-// Sesiones (ANTES de las rutas)
-app.use(sessionMiddleware);
-
-// Servir estáticos
-const publicPath = path.join(__dirname, '..', 'public');
-const uploadsPath = path.join(__dirname, '..', 'uploads');
-
-app.use(express.static(publicPath));
-app.use('/uploads', express.static(uploadsPath));
-
-// Rutas de auth (login/logout/me) — NO requieren auth
-app.use('/api', authRouter);
-
-// Rutas de partes — requieren auth
-app.use('/api', requireAuth, partesRouter);
-
-// Catch-all: servir partes.html para cualquier ruta no-API
-app.get('*', (req, res) => {
-  res.sendFile(path.join(publicPath, 'partes.html'));
-});
-
-// Start server
-app.listen(PORT, () => {
-  console.log('🚀 Partes API corriendo en puerto ' + PORT);
-  console.log('📁 Sirviendo public desde: ' + publicPath);
-  console.log('📁 Uploads desde: ' + uploadsPath);
+createApp({ config, db, mailer, tecnicos }).listen(config.port, () => {
+  console.log(`Partes de servicio en http://localhost:${config.port}`);
+  if (config.demo) console.log('Modo demo: datos ficticios, contraseña demo1234, los correos no se envían.');
+  else if (mailer.simulated) console.log('Aviso: SMTP sin configurar, los correos no se envían.');
 });

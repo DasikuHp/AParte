@@ -34,6 +34,9 @@ const MAX_PDF = 10 * 1024 * 1024; // ~10 MB de base64
 const MAX_DESTINATARIOS = 10;
 const EMAIL_RE = /^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/;
 const FOTO_TIPOS = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' };
+// En la demo pública se limita lo que un visitante puede guardar en el servidor.
+const DEMO_MAX_PARTES = 200;
+const DEMO_MAX_FOTOS = 100;
 
 function fromRow(row) {
   if (!row) return row;
@@ -156,6 +159,9 @@ function partesRouter({ db, mailer, config, tecnicos }) {
   });
 
   router.post('/partes', (req, res) => {
+    if (config.demo && db.prepare('SELECT COUNT(*) AS n FROM partes').get().n >= DEMO_MAX_PARTES) {
+      return res.status(429).json({ error: 'La demo ha llegado al máximo de partes' });
+    }
     const cols = toColumns(req.body || {});
     cols.id = crypto.randomUUID();
     cols.tech = req.session.tech; // el técnico sale de la sesión, nunca del cuerpo
@@ -236,11 +242,14 @@ function partesRouter({ db, mailer, config, tecnicos }) {
       destination: config.uploadsDir,
       filename: (req, file, cb) => cb(null, crypto.randomUUID() + FOTO_TIPOS[file.mimetype]),
     }),
-    limits: { fileSize: 8 * 1024 * 1024, files: 1, fields: 0 },
+    limits: { fileSize: (config.demo ? 2 : 8) * 1024 * 1024, files: 1, fields: 0 },
     fileFilter: (req, file, cb) => cb(FOTO_TIPOS[file.mimetype] ? null : badRequest('Solo se admiten fotos JPEG, PNG o WebP'), true),
   });
 
   router.post('/upload', (req, res, next) => {
+    if (config.demo && fs.readdirSync(config.uploadsDir).length >= DEMO_MAX_FOTOS) {
+      return res.status(429).json({ error: 'La demo ha llegado al máximo de fotos' });
+    }
     upload.single('file')(req, res, (err) => {
       if (err) {
         if (err instanceof multer.MulterError) err.status = 400;

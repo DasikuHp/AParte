@@ -1,0 +1,19 @@
+# Demo pública en Render (plan gratuito). Datos ficticios y correo simulado.
+# El disco del plan gratuito no es persistente: al reiniciarse vuelve a los partes de ejemplo.
+services:
+  - type: web
+    name: aparte-demo
+    runtime: node
+    plan: free
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/tecnicos
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: NODE_ENV
+        value: production
+      - key: DEMO_MODE
+        value: "true"
+      - key: SESSION_SECRET
+        generateValue: true

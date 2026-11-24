@@ -57,7 +57,7 @@ La hice durante mis prácticas de 1.º de DAW para dos técnicos de una empresa 
 ## Cómo funciona por dentro
 
 ```mermaid
-flowchart LR
+flowchart TB
     subgraph Móvil del técnico
         F[Formulario<br/>public/js/app.js] --> P[Vista previa<br/>div parte-doc]
         P -->|html2canvas + jsPDF| PDF[PDF en base64]

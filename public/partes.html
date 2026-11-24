@@ -758,10 +758,17 @@
             font-family: Arial, Helvetica, sans-serif;
             font-size: 11px;
             color: #111;
-            max-width: 600px;
+            /* Ancho fijo de folio: en móvil se reduce con transform (fitPreview)
+               y el PDF sale igual desde cualquier pantalla. */
+            width: 600px;
             margin: 0 auto;
             padding: 28px 24px;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            transform-origin: top left;
+        }
+
+        #parte-doc-wrap {
+            overflow: hidden;
         }
 
         .pd-title {
@@ -838,6 +845,7 @@
         .pd-mat {
             width: 100%;
             border-collapse: collapse;
+            white-space: normal;
         }
 
         .pd-mat th {
@@ -1304,6 +1312,7 @@
     <div id="view-preview" class="view">
         <div class="preview-outer">
 
+            <div id="parte-doc-wrap">
             <div id="parte-doc">
                 <div class="pd-title">PARTE DE SERVICIO</div>
 
@@ -1383,7 +1392,7 @@
 
                 <div class="pd-sec">
                     <div class="pd-sec-head">Material Utilizado:</div>
-                    <div class="pd-sec-body" style="padding:0;min-height:55px">
+                    <div class="pd-sec-body" style="padding:0;min-height:55px;white-space:normal">
                         <table class="pd-mat" id="p-mat"></table>
                     </div>
                 </div>
@@ -1403,12 +1412,13 @@
 
                 <div class="pd-footer" id="p-footer"></div>
             </div>
+            </div>
 
         </div>
 
         <div class="preview-bar">
             <button class="btn btn-outline" id="btn-edit" onclick="showView('form')">← Editar</button>
-            <button class="btn btn-outline" id="btn-pdf" style="display:none" onclick="openSavedPdf()">Ver PDF enviado</button>
+            <button class="btn btn-outline" id="btn-pdf" style="display:none" onclick="openSavedPdf()">Ver PDF</button>
             <button class="btn btn-primary" id="btn-gen" onclick="confirmSend()">Generar PDF y Enviar</button>
         </div>
     </div>
@@ -1426,7 +1436,7 @@
                     <div class="chip on" onclick="setChip('all',this)">Todos</div>
                     <div class="chip" onclick="setChip('sent',this)">Enviados</div>
                     <div class="chip" onclick="setChip('draft',this)">Borradores</div>
-                    <span id="tech-chips"></span>
+                    <span id="tech-chips" style="display:contents"></span>
                 </div>
                 <div id="history-list"></div>
             </div>

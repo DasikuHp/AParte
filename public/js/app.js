@@ -394,8 +394,21 @@ function buildPreview() {
     const editable = !S.current || S.current.editable !== false;
     document.getElementById('btn-edit').style.display = editable ? '' : 'none';
     document.getElementById('btn-gen').style.display = editable ? '' : 'none';
-    document.getElementById('btn-gen').textContent = S.current?.status === 'sent' ? 'Generar PDF y reenviar' : 'Generar PDF y Enviar';
+    document.getElementById('btn-gen').textContent = S.current?.status === 'sent' ? 'Reenviar' : 'Generar PDF y Enviar';
     document.getElementById('btn-pdf').style.display = S.current?.tienePdf ? '' : 'none';
+    document.querySelector('.preview-bar').style.display = (editable || S.current?.tienePdf) ? '' : 'none';
+    fitPreview();
+}
+
+// El documento mide siempre 600 px (como un folio). En pantallas estrechas se
+// muestra reducido con transform: scale(), sin cambiar su maquetación.
+function fitPreview() {
+    const wrap = document.getElementById('parte-doc-wrap');
+    const doc = document.getElementById('parte-doc');
+    const scale = Math.min(1, wrap.clientWidth / doc.offsetWidth);
+    doc.style.transform = scale < 1 ? `scale(${scale})` : '';
+    doc.style.margin = scale < 1 ? '0' : '';
+    wrap.style.height = scale < 1 ? `${doc.offsetHeight * scale}px` : '';
 }
 
 function openSavedPdf() {
@@ -451,7 +464,10 @@ async function generatePDF() {
     const el = document.getElementById('parte-doc');
     // html2canvas "fotografía" la vista previa; el PDF es esa imagen en un A4.
     const canvas = await html2canvas(el, {
-        scale: 2.5, useCORS: true, backgroundColor: '#ffffff', logging: false
+        scale: 2.5, useCORS: true, backgroundColor: '#ffffff', logging: false,
+        width: el.offsetWidth, height: el.offsetHeight, windowWidth: Math.max(window.innerWidth, 800),
+        // La copia que se rasteriza va a tamaño real aunque en pantalla esté reducida.
+        onclone: (d) => { d.getElementById('parte-doc').style.transform = 'none'; },
     });
     const img = canvas.toDataURL('image/jpeg', 0.95);
     const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
@@ -565,6 +581,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     window.addEventListener('resize', () => {
+        if (S.view === 'preview') fitPreview();
         if (S.view === 'form' && S.sigPad) {
             const c = document.getElementById('sig-canvas');
             const ratio = window.devicePixelRatio || 1;

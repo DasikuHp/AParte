@@ -3,7 +3,7 @@
   "version": "1.1.0",
   "private": true,
   "description": "Partes de servicio para técnicos: formulario en el móvil, firma del cliente, PDF y envío por email",
-  "license": "BUSL-1.1",
+  "license": "UNLICENSED",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",

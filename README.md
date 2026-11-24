@@ -12,7 +12,7 @@
   </p>
   <p>
     <a href="https://github.com/DasikuHp/AParte/actions/workflows/test.yml"><img alt="Tests" src="https://github.com/DasikuHp/AParte/actions/workflows/test.yml/badge.svg"></a>
-    <img alt="Licencia BSL 1.1" src="https://img.shields.io/badge/licencia-BSL_1.1-blue">
+    <img alt="Todos los derechos reservados" src="https://img.shields.io/badge/licencia-todos_los_derechos_reservados-red">
   </p>
 </div>
 
@@ -127,7 +127,9 @@ AParte
 └── docs/media/                 Capturas y GIF de este README
 ```
 
-## Instalación
+## Probarlo en local
+
+Para revisar el proyecto (cualquier otro uso necesita licencia):
 
 Hace falta Node.js 22.13 o posterior (por `node:sqlite`).
 
@@ -211,7 +213,7 @@ Los 11 tests de `test/api.test.js` levantan la app con una base de datos en memo
 
 ## Licencia
 
-[Business Source License 1.1](LICENSE). Puedes leer, copiar y modificar el código y usarlo fuera de producción. El uso comercial necesita permiso; el 27 de marzo de 2030 pasa a Apache 2.0. Contacto: [dasikuhp@gmail.com](mailto:dasikuhp@gmail.com).
+El código es mío y **no tiene licencia abierta**: está publicado para que se pueda ver, pero copiarlo, modificarlo, difundirlo o usarlo necesita una licencia de pago ([LICENSE](LICENSE)). Si te interesa, escríbeme a [dasikuhp@gmail.com](mailto:dasikuhp@gmail.com).
 
 <div align="center">
   <sub>Hecho por <a href="https://github.com/DasikuHp">DasikuHp</a> · versión 1.1.0</sub>
